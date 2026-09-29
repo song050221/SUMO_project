@@ -332,6 +332,8 @@ const HW_ROLE_LABELS = { lead: "선행", follow: "후행", unknown: "차량" };
 
 function hardwareVehicleLine(v) {
   const role = HW_ROLE_LABELS[v.role] || "차량";
+  // 보드에서 나온 차는 같은 그림의 일반 차량(rc_…)으로 SUMO에서 계속 달리며 중앙 제어를 받는다
+  if (v.released_as) return `${role} ${v.vehicle_id} · 보드 도착 → SUMO에서 계속 주행 (${v.released_as})`;
   if (v.arrived) return `${role} ${v.vehicle_id} · 도착`;
   if (!v.visible) return `${role} ${v.vehicle_id} · 인식 끊김`;
   const cmd = HW_COMMAND_LABELS[v.command] || v.command || "-";

@@ -237,6 +237,10 @@ HARDWARE_SPAWN_EDGE = "-172058984"        # 카메라가 차량을 인식하면 
 # 못 읽음) 대신 충분히 큰 유한값을 쓴다.
 HARDWARE_ACCIDENT_SENTINEL_DURATION = 999999.0
 
+# 신양초 사거리 차도는 custom1 차종만 다닐 수 있다(network/sinyang_closed.edg.xml, 2026-09-30) - 일반 차종으로는
+# 경로도 못 찾고 차도 못 넣는다. vehicle_style.xml의 실물 연동 차종을 쓴다(이 차는 hw_ id라 중앙 제어는 그대로 받음).
+HARDWARE_VTYPE = "hwtwin_follow"
+
 HARDWARE_DEST_HOPS = 8  # HARDWARE_PEDESTRIAN_EDGE 하류 몇 hop까지를 목적지 후보로 볼지
 
 _hardware_vehicle_seq = 0
@@ -281,7 +285,7 @@ def _hardware_dest_candidates():
     if _HARDWARE_DEST_CANDIDATES is None:
         candidates = []
         for edge_id in sorted(_downstream_edges(HARDWARE_PEDESTRIAN_EDGE, HARDWARE_DEST_HOPS)):
-            route = traci.simulation.findRoute(HARDWARE_SPAWN_EDGE, edge_id)
+            route = traci.simulation.findRoute(HARDWARE_SPAWN_EDGE, edge_id, vType=HARDWARE_VTYPE)
             if HARDWARE_PEDESTRIAN_EDGE in route.edges:
                 candidates.append(edge_id)
         _HARDWARE_DEST_CANDIDATES = candidates or [HARDWARE_PEDESTRIAN_EDGE]
@@ -315,7 +319,7 @@ def spawn_hardware_vehicle(current_time):
     global _hardware_vehicle_seq
 
     dest_edge = random.choice(_hardware_dest_candidates())
-    route = traci.simulation.findRoute(HARDWARE_SPAWN_EDGE, dest_edge)
+    route = traci.simulation.findRoute(HARDWARE_SPAWN_EDGE, dest_edge, vType=HARDWARE_VTYPE)
     if not route.edges:
         return None
 
@@ -323,7 +327,7 @@ def spawn_hardware_vehicle(current_time):
     veh_id = f"hw_{_hardware_vehicle_seq}"
     route_id = f"hw_route_{veh_id}"
     traci.route.add(route_id, route.edges)
-    traci.vehicle.add(veh_id, route_id, depart="now")
+    traci.vehicle.add(veh_id, route_id, typeID=HARDWARE_VTYPE, depart="now")
     return veh_id
 
 

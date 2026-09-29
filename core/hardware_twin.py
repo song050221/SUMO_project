@@ -6,6 +6,11 @@ invuc02/capstone-sumo-bridge의 INTERFACE.md). 주행 판단(보행자 앞 정�
 **그리기만 한다** - 그래서 여기서 만든 차량(ID가 HW_PREFIX로 시작)은 중앙 경로 재계산,
 사고 대응 명령, 선제 우회, 견인 대상에서 모두 빠진다(각 모듈이 is_hardware_twin()으로 거름).
 
+보드 위 주행이 끝나면(도착, 또는 사거리를 지난 뒤 인식이 끊김) 그 차를 지우지 않고 같은 자리·같은
+그림의 일반 SUMO 차량(ID가 RELEASED_PREFIX로 시작)으로 넘겨 무작위 목적지까지 계속 달리게 한다
+(2026-09-30 사용자 요청 - "시뮬레이션의 일부라는 느낌으로"). 이 차는 is_hardware_twin()에 걸리지 않으므로
+중앙 경로 재계산·사고 대응·선제 우회·견인을 다른 차와 똑같이 받는다.
+
 보드와 사거리는 크기·모양이 달라서 좌표를 그대로 옮기지 않는다. 차 위치를 보드 위 주행선
 (configs/hardware_twin.json의 board_paths)에 투영해 "몇 m 진행했나"를 구하고, 기준점
 (anchors: 출발, 사거리 입구, 보행자 LED 선, 도착)끼리 짝지어 SUMO 경로 위 거리로 선형
@@ -18,6 +23,7 @@ invuc02/capstone-sumo-bridge의 INTERFACE.md). 주행 판단(보행자 앞 정�
 import json
 import math
 import os
+import random
 import socket
 import threading
 import time
@@ -26,6 +32,9 @@ import traci
 
 HW_PREFIX = "hwtwin_"
 HW_VTYPE = "hwtwin"
+RELEASED_PREFIX = "rc_"   # 보드에서 나와 일반 차량이 된 실물 차 - 중앙 제어를 받는다
+RELEASE_MIN_ROUTE_M = 1500.0  # 넘긴 뒤 목적지까지 최소 이 정도는 달리게(너무 금방 사라지지 않게)
+RELEASE_DEST_TRIES = 40
 ROLE_TYPES = ("lead", "follow", "diverted")
 PEDESTRIAN_POI = "hwtwin_pedestrian"
 CROSSWALK_PREFIX = "hwtwin_crosswalk_"
@@ -185,6 +194,10 @@ class HardwareTwin:
         self._last_message = None
         self._ready = False
         self._role_types = None
+        self._released = {}    # 넘긴 SUMO id -> 차량 호스트 vehicle_id
+        self._release_seq = 0
+        self._rng = random.Random()  # 전역 random(사고 발생 seed)을 건드리지 않게 따로 둔다
+        self._dest_edges = None
 
     # --- 준비: SUMO 경로 모양과 기준점 거리 계산 (TraCI 연결 뒤 한 번)
     def _setup(self):
@@ -311,11 +324,13 @@ class HardwareTwin:
             sumo_id = car["sumo_id"]
             if v.get("arrived"):
                 if not car["arrived"]:
-                    self._remove(sumo_id, live)
+                    self._release(hid, car, live)
                     car["arrived"] = True
                     car["pose"] = None
+                    car["kind"] = None  # 다음 판에 같은 갈래로 다시 나타나도 새로 만들게
                 continue
             car["arrived"] = False
+            car.pop("released_as", None)  # 새 판 시작 - 지난 판에 넘긴 차는 SUMO에서 따로 계속 달린다
             kind = route_kind(v)
             if kind is None or not v.get("visible") or v.get("x") is None:
                 continue  # 마커를 놓치면 마지막 위치에 그대로 둔다
@@ -389,8 +404,69 @@ class HardwareTwin:
     def _forget_stale(self, wall, live):
         for hid, car in list(self._cars.items()):
             if wall - car.get("last_seen", wall) > self.cfg["forget_after_s"]:
-                self._remove(car["sumo_id"], live)
+                # 사거리를 이미 지났으면 보드 밖으로 나간 것으로 보고 일반 차량으로 넘긴다. 진입로에서 끊겼으면 지운다.
+                if not car["arrived"] and not self._release(hid, car, live, require_past_junction=True):
+                    self._remove(car["sumo_id"], live)
                 del self._cars[hid]
+        gone = [s for s in self._released if s not in live]
+        if gone:
+            pending = set(traci.simulation.getPendingVehicles())  # 방금 넣어 아직 도로에 안 올라간 차는 남긴다
+            for sumo_id in gone:
+                if sumo_id not in pending:
+                    del self._released[sumo_id]  # 목적지 도착·견인 등으로 사라진 차
+
+    # --- 보드에서 나온 차를 일반 SUMO 차량으로 넘기기
+    def _release(self, hid, car, live, require_past_junction=False):
+        """보드 차(HW_PREFIX)를 지우고 같은 자리에 같은 그림의 일반 차량(RELEASED_PREFIX)을 넣는다.
+        넘겼으면 새 SUMO id, 못 넘겼으면(차가 없음, 사거리 전, 갈 곳 없음) None - 보드 차는 어느 쪽이든 지운다."""
+        sumo_id = car["sumo_id"]
+        if sumo_id not in live and sumo_id not in traci.vehicle.getIDList():
+            return None
+        try:
+            edge = traci.vehicle.getRoadID(sumo_id)
+            pos = traci.vehicle.getLanePosition(sumo_id)
+            type_id = traci.vehicle.getTypeID(sumo_id)
+        except traci.exceptions.TraCIException:
+            return None
+        route_edges = self._routes[car["kind"]]["edges"] if car.get("kind") in self._routes else []
+        if edge.startswith(":") or edge not in route_edges:
+            # 사거리 안(내부 차선)에는 차를 넣을 수 없다 - 나가는 도로 시작점에서 이어 간다
+            edge, pos = (route_edges[-1], 0.0) if route_edges else (edge, pos)
+        if require_past_junction and route_edges and edge == route_edges[0]:
+            return None
+        self._remove(sumo_id, live)
+        car["pose"] = None
+        route = self._release_route(edge, type_id)
+        if route is None:
+            return None
+        self._release_seq += 1
+        new_id = f"{RELEASED_PREFIX}{hid}_{self._release_seq}"
+        traci.route.add(f"{new_id}_route", route)
+        pos = min(pos, max(0.0, traci.lane.getLength(f"{edge}_{self._lane_idx}") - 1.0))
+        traci.vehicle.add(new_id, f"{new_id}_route", typeID=type_id, depart="now",
+                          departLane=str(self._lane_idx), departPos=f"{pos:.1f}", departSpeed="0")
+        self._released[new_id] = hid
+        car["released_as"] = new_id
+        return new_id
+
+    def _release_route(self, from_edge, type_id):
+        """from_edge에서 RELEASE_MIN_ROUTE_M 이상 떨어진 무작위 목적지까지의 경로(없으면 None)."""
+        if self._dest_edges is None:
+            self._dest_edges = [e for e in traci.edge.getIDList() if not e.startswith(":")]
+        best = None
+        for _ in range(RELEASE_DEST_TRIES):
+            dest = self._rng.choice(self._dest_edges)
+            try:
+                r = traci.simulation.findRoute(from_edge, dest, vType=type_id)
+            except traci.exceptions.TraCIException:
+                continue
+            if not r.edges:
+                continue
+            if r.length >= RELEASE_MIN_ROUTE_M:
+                return list(r.edges)
+            if best is None or r.length > best[0]:
+                best = (r.length, list(r.edges))
+        return best[1] if best else None
 
     def _remove(self, sumo_id, live):
         if sumo_id in live or sumo_id in traci.vehicle.getIDList():
@@ -466,6 +542,7 @@ class HardwareTwin:
                 "destination_zone": v.get("destination_zone"),
                 "visible": bool(v.get("visible")),
                 "arrived": car["arrived"],
+                "released_as": car.get("released_as"),
             })
         return {
             "connected": age is not None and age <= self.cfg["stale_after_s"],
@@ -474,5 +551,6 @@ class HardwareTwin:
             "scenario_state": (message or {}).get("scenario_state"),
             "pedestrian": self._ped_present,
             "vehicles": cars,
+            "released": sorted(self._released),  # 보드에서 나와 일반 차량으로 달리는 중인 SUMO id
             "error": self.receiver.error,
         }

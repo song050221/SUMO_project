@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "core"))
 
 from hardware_twin import (  # noqa: E402
-    is_hardware_twin, piecewise_map, point_at, polyline_length, project_to_polyline,
+    RELEASED_PREFIX, is_hardware_twin, piecewise_map, point_at, polyline_length, project_to_polyline,
     pedestrian_hazards, route_kind, vehicle_role,
 )
 
@@ -88,3 +88,5 @@ def test_config_anchor_points_lie_on_board_paths():
         # 기준점은 주행선을 따라 순서대로 놓여 있어야 한다
         ss = [project_to_polyline(path, p) for p, _ in anchors]
         assert ss == sorted(ss), kind
+    # 보드에서 나와 일반 차량으로 넘긴 차는 중앙 제어 대상이어야 한다
+    assert not is_hardware_twin(f"{RELEASED_PREFIX}car_2_1")
