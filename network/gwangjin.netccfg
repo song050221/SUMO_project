@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 광진구 도로망 빌드 설정 (2026-09-29).
+     OSM Web Wizard와 같은 변환 설정(교차점 합치기·신호 합치기 등) + 보행자용 보도/횡단보도.
+     예전 net은 junctions.join 없이 만들어 사거리 하나가 노드 여러 개로 쪼개졌고, 그 때문에 사거리 한가운데
+     횡단보도·짧은 연결 도로·견인 다발 문제가 생겼었다(docs/HANDOFF_PROMPT.md Q~X).
+     좌표 기준점은 예전 net과 같게 고정(건물·강 폴리곤, CCTV 좌표가 그대로 맞도록).
+     신양초 남동(SE)·북서(NW) 팔은 일방통행이라 반대 방향 edge를 뺀다(2026-08-09 사용자 확인).
+     유턴은 허용(위저드·예전 net과 같음) - 막으면 막다른 길이 들어가면 못 나오는 곳이 되어 그 위 출발/도착 경로가
+     끊긴다(2026-09-29 확인).
+     신호: 예전 net에서 병목 교차로에 손으로 추가했던 신호(tls.set, HANDOFF J·O번) 중 새 net에서 빠진 84곳을 같은
+     자리 교차점에 다시 지정(목록 experiment_data/tls_set_nodes_2026-09-29.json). 신호 합치기(tls.join)는 끔 - 켜면
+     교차로 여러 개를 한 신호로 묶어 주기 238~296초짜리가 생겼고, 5 seed 측정에서 끈 쪽이 견인·그리드락이 훨씬 적었다.
+     실행: cd network && netconvert -c gwangjin.netccfg -->
+<netconvertConfiguration>
+    <input>
+        <osm-files value="export.osm"/>
+        <type-files value="${SUMO_HOME}/data/typemap/osmNetconvert.typ.xml"/>
+    </input>
+    <output>
+        <output-file value="gwangjin.net.xml"/>
+        <output.street-names value="true"/>
+        <output.original-names value="true"/>
+    </output>
+    <processing>
+        <geometry.remove value="true"/>
+        <offset.disable-normalization value="true"/>
+        <offset.x value="-323160.56"/>
+        <offset.y value="-4153330.57"/>
+    </processing>
+    <edge_removal>
+        <remove-edges.explicit value="172058984,85960673#2"/>
+    </edge_removal>
+    <pedestrian>
+        <sidewalks.guess value="true"/>
+        <crossings.guess value="true"/>
+        <walkingareas value="true"/>
+    </pedestrian>
+    <tls_building>
+        <tls.discard-simple value="true"/>
+        <tls.join value="false"/>
+        <tls.set value="11676538809,11676538963,11775847295,11775847331,11775847332,11775847358,11780843338,11780843339,11780843560,11780843561,13043012542,1979127200,2357032225,2461157978,2461169624,2461169631,2641797444,3750103633,3800707996,3800707999,3800708017,3823777556,3830520036,3830520043,3830520053,3832415794,3832415808,3832677156,3832677259,3832677261,3832677270,3832677273,3832897072,3832902764,3832902808,3832902836,3833006061,3833006078,3856575579,3996936064,3996936160,4177574861,4197392023,4630953080,4632551691,4632551828,4632551852,4634599284,4634599286,4634613321,4634613323,4654764148,5338416868,5424067706,7056622474,7056622479,7056665813,7332021742,7875093397,7875093398,7875093402,7875093413,7875093416,8906026982,9083945497,cluster_13043012547_13043012550_13043012557,cluster_13906094034_13906094035_436822859,cluster_1853555466_4631379014,cluster_3792236059_3792236162,cluster_3800707972_3800707981,cluster_3800708029_3800708030,cluster_3807501247_3807501248,cluster_3832415951_8500374696,cluster_3832677285_4197306083,cluster_3832677295_9009916678,cluster_3832897129_3832897131_3832897139_4632481694,cluster_3832902758_3832902761,cluster_3832903257_3832903267,cluster_3840739116_4676719991,cluster_4176800256_8418374099,cluster_4177575490_7878704815,cluster_436832681_5120772423_8743773046_9651134449,cluster_7332021743_7332092503,cluster_9925986189_9925986196"/>
+        <tls.guess-signals value="true"/>
+        <tls.default-type value="static"/>
+    </tls_building>
+    <ramp_guessing>
+        <ramps.guess value="true"/>
+    </ramp_guessing>
+    <junctions>
+        <junctions.join value="true"/>
+    </junctions>
+    <report>
+        <no-warnings value="true"/>
+    </report>
+</netconvertConfiguration>

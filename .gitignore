@@ -1,0 +1,23 @@
+# 도로망 - 112MB라 GitHub 한 파일 제한(100MB)을 넘는다. network/gwangjin.netccfg로 다시 만든다(README 참고)
+network/gwangjin.net.xml
+
+# 실험용 seed별 수요 - scripts/run_single_simulation.py의 ensure_demand()가 없으면 다시 만든다
+experiment_data/routes_seed*.xml
+experiment_data/pedestrian_routes_seed*.xml
+experiment_data/trips_seed*.xml
+experiment_data/pedestrian_trips_seed*.xml
+experiment_data/collisions_seed*.xml
+
+# 실행하면 생기는 부산물
+routes.rou.xml
+viewsettings.xml
+collisions.xml
+network/collisions.xml
+*.alt.xml
+__pycache__/
+.pytest_cache/
+
+# 개인 정보가 들어 있는 문서·로컬 도구 설정(공개 저장소)
+docs/*.pdf
+Claude outputs/
+.claude/

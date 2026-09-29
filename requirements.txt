@@ -1,0 +1,9 @@
+# SUMO 본체(1.27.1)는 따로 설치하고 SUMO_HOME 환경변수를 잡아 둘 것 - sumolib/traci는 SUMO에 들어 있는 것과 버전을 맞춘다
+flask>=3.1
+flask-socketio>=5.6
+pillow>=12
+pandas
+scipy
+sumolib==1.27.1
+traci==1.27.1
+pytest

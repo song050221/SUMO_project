@@ -1,0 +1,320 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 24px;
+  font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+  background: #0f1420;
+  color: #e6e9f0;
+}
+header h1 { margin: 0 0 4px; font-size: 1.6rem; }
+.subtitle { margin: 0 0 24px; color: #8b93a8; font-size: 0.9rem; }
+
+#summary-panel {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+.summary-card {
+  background: #1b2233;
+  border-radius: 10px;
+  padding: 14px 20px;
+  min-width: 140px;
+  border: 1px solid transparent;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.summary-card .label { display: block; font-size: 0.8rem; color: #8b93a8; }
+.summary-card .value { display: block; font-size: 1.5rem; font-weight: 600; margin-top: 4px; }
+.summary-card.clickable { cursor: pointer; }
+.summary-card.clickable:hover { border-color: #4a9eff; transform: translateY(-2px); }
+.summary-card.focusing {
+  border-color: #4a9eff;
+  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.35);
+}
+
+/* 사고 추적 모드 - 요약 줄 맨 오른쪽 빨간 블럭. 켜져 있으면 더 진하게 + 깜빡임 */
+.summary-card.tracking-card {
+  background: #3a1520;
+  border-color: #7a2535;
+  margin-left: auto;
+}
+.summary-card.tracking-card .label { color: #ff9aa6; }
+.summary-card.tracking-card .value { color: #ff6b7a; }
+.summary-card.tracking-card:hover { border-color: #ff6b7a; }
+.summary-card.tracking-card.active {
+  background: #5a1a28;
+  border-color: #ff6b7a;
+  animation: tracking-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tracking-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 122, 0.0); }
+  50% { box-shadow: 0 0 0 4px rgba(255, 107, 122, 0.35); }
+}
+
+/* 사고 추적 창 제목의 로딩 표시(돌아가는 원) */
+.tracking-spinner {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin: 0 6px -0.1em;
+  border: 2px solid rgba(255, 107, 122, 0.3);
+  border-top-color: #ff6b7a;
+  border-radius: 50%;
+  animation: tracking-spin 0.9s linear infinite;
+}
+@keyframes tracking-spin { to { transform: rotate(360deg); } }
+.algo-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: #2a1a33;
+  color: #d19bff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: help;
+}
+.algo-detail { font-size: 0.72rem; color: #8b93a8; margin-top: 3px; }
+.algo-badge.stop { background: #3a1520; color: #ff6b7a; }
+.algo-badge.decelerate { background: #3a2e14; color: #ffc15a; }
+.algo-badge.keep { background: #16233a; color: #4a9eff; }
+.eta-saved { color: #4fd07a; font-weight: 600; }
+.eta-lost { color: #ff6b7a; font-weight: 600; }
+
+#zone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.zone-card {
+  background: #1b2233;
+  border-radius: 10px;
+  padding: 16px;
+  border: 1px solid #262f45;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  cursor: pointer;
+}
+.zone-card:hover {
+  border-color: #4a9eff;
+  transform: translateY(-2px);
+}
+.zone-card:active {
+  transform: translateY(0);
+}
+.zone-card.alert {
+  border-color: #e0526b;
+  background: #2a1620;
+}
+.zone-card.focusing {
+  border-color: #4a9eff;
+  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.35);
+}
+.zone-card h2 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.zone-card h2::after {
+  content: "📷";
+  font-size: 0.75rem;
+  opacity: 0.5;
+}
+.zone-metric {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #b7bdcc;
+  padding: 3px 0;
+}
+.zone-value { font-weight: 600; color: #e6e9f0; }
+.zone-value.warn { color: #e0526b; }
+.zone-hint {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: #5c6478;
+  text-align: right;
+}
+
+/* CCTV(데이터 기반 선정 9곳)와 같은 #zone-grid 안에 나란히 배치하되, 초록 강조색으로
+   구분한다 - 하드웨어 시연 보드와 직접 연동되는 별도 성격의 구역임을 시각적으로 드러낸다. */
+.school-zone-card {
+  border-color: #2a6b3f;
+}
+.school-zone-card:hover { border-color: #3ba85c; }
+.school-zone-card h2::after { content: "🚸"; }
+.zone-value.ok { color: #3ba85c; font-weight: 600; }
+.hardware-vehicles { list-style: none; margin: 4px 0 0; padding: 0; font-size: 12px; color: #c9d1d9; }
+.hardware-vehicles li { padding: 1px 0; }
+
+#alert-log {
+  background: #1b2233;
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+#alert-log h2 { margin: 0 0 10px; font-size: 1rem; }
+#alert-list { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; }
+#alert-list li {
+  padding: 6px 0;
+  border-bottom: 1px solid #262f45;
+  color: #b7bdcc;
+}
+#alert-list li:last-child { border-bottom: none; }
+#alert-list li.clickable { cursor: pointer; }
+#alert-list li.clickable:hover { color: #4a9eff; }
+#alert-list .tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 8px;
+  background: #33263a;
+  color: #e0526b;
+  font-size: 0.75rem;
+  margin-right: 8px;
+}
+
+#zone-detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 14, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+#zone-detail-overlay.hidden { display: none; }
+
+#zone-detail-panel {
+  background: #161c2b;
+  border: 1px solid #2a3350;
+  border-radius: 12px;
+  width: min(640px, 92vw);
+  /* height를 고정값으로 줘야 한다 - max-height만 쓰면 행이 적을 때 패널이 콘텐츠
+     크기로 줄어들면서 footer(사고 생성 버튼) 화면상 위치가 행 수에 따라 움직인다
+     (실측으로 확인된 문제, 161px씩 이동함). 고정 높이 + body만 스크롤되는 구조여야
+     행이 0개든 30개든 footer가 항상 패널 맨 아래 같은 자리에 있다. */
+  height: min(600px, 80vh);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+}
+#zone-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+#zone-detail-title { margin: 0; font-size: 1.1rem; }
+#zone-detail-close {
+  background: none;
+  border: none;
+  color: #8b93a8;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 8px;
+}
+#zone-detail-close:hover { color: #e6e9f0; }
+
+/* 표는 이 영역 안에서만 스크롤된다 - 행 수가 늘어나도 아래 footer(사고 생성 버튼)
+   위치는 절대 안 움직인다. */
+#zone-detail-body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+#zone-detail-footer {
+  flex-shrink: 0;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #2a3350;
+}
+#zone-detail-footer.hidden { display: none; }
+#trigger-accident-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #5a2530;
+  background: #2a1620;
+  color: #ff6b7a;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+#trigger-accident-btn:hover { background: #3a1a26; }
+#trigger-accident-btn:active { transform: scale(0.98); }
+#trigger-accident-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 어린이보호구역 하드웨어 연동용 버튼(아직 실물 하드웨어가 없어 대신 클릭으로 신호를
+   흉내낸다) - 사고 생성 버튼과 같은 크기/모양이지만 색으로 구분한다. */
+#spawn-vehicle-btn, #pedestrian-toggle-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  margin-top: 8px;
+}
+#spawn-vehicle-btn.hidden, #pedestrian-toggle-btn.hidden { display: none; }
+#spawn-vehicle-btn {
+  border: 1px solid #1f4a7a;
+  background: #16233a;
+  color: #4a9eff;
+}
+#spawn-vehicle-btn:hover { background: #1c2d4a; }
+#pedestrian-toggle-btn {
+  border: 1px solid #2a6b3f;
+  background: #16241c;
+  color: #3ba85c;
+}
+#pedestrian-toggle-btn:hover { background: #1c2e22; }
+#spawn-vehicle-btn:active, #pedestrian-toggle-btn:active { transform: scale(0.98); }
+#spawn-vehicle-btn:disabled, #pedestrian-toggle-btn:disabled { opacity: 0.5; cursor: default; }
+
+#zone-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+#zone-detail-table th {
+  text-align: left;
+  color: #8b93a8;
+  font-weight: 500;
+  padding: 6px 8px;
+  border-bottom: 1px solid #2a3350;
+}
+#zone-detail-table td {
+  padding: 8px;
+  border-bottom: 1px solid #1f2740;
+  color: #e6e9f0;
+}
+.detail-row { cursor: pointer; transition: background 0.15s; }
+.detail-row:hover { background: #1f2740; }
+#zone-detail-empty {
+  color: #8b93a8;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 20px 0 4px;
+}
+#zone-detail-empty.hidden { display: none; }
+
+.optimized-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: #16233a;
+  color: #4a9eff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-right: 6px;
+}
+.eta-new { color: #4fd07a; font-weight: 600; }
+.eta-normal { color: #b7bdcc; }

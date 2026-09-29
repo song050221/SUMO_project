@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V2N 중앙 제어 교통 최적화 — Baseline vs Treatment</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='comparison.css') }}">
+</head>
+<body>
+<header>
+  <h1>Baseline vs Treatment 비교</h1>
+  <p class="subtitle">분산형(baseline) vs 중앙집중형(treatment) — seed별 반복 실험 통계 검정 결과</p>
+</header>
+
+<div id="meta-info"></div>
+<div id="metric-grid"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='comparison.js') }}"></script>
+</body>
+</html>

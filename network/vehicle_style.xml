@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- scripts/build_visual_assets.py가 만든 시연용 차량 그림 정의. 물리 값은 SUMO 기본값 그대로. -->
+<additional>
+    <vTypeDistribution id="DEFAULT_VEHTYPE">
+        <vType id="car_sedan_white" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_sedan_white.png" probability="19.50"/>
+        <vType id="car_suv_white" vClass="passenger" guiShape="passenger/van" color="255,255,255" imgFile="assets/car_suv_white.png" probability="10.50"/>
+        <vType id="car_sedan_pearl" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_sedan_pearl.png" probability="5.20"/>
+        <vType id="car_suv_pearl" vClass="passenger" guiShape="passenger/van" color="255,255,255" imgFile="assets/car_suv_pearl.png" probability="2.80"/>
+        <vType id="car_sedan_silver" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_sedan_silver.png" probability="9.10"/>
+        <vType id="car_suv_silver" vClass="passenger" guiShape="passenger/van" color="255,255,255" imgFile="assets/car_suv_silver.png" probability="4.90"/>
+        <vType id="car_sedan_gray" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_sedan_gray.png" probability="9.10"/>
+        <vType id="car_suv_gray" vClass="passenger" guiShape="passenger/van" color="255,255,255" imgFile="assets/car_suv_gray.png" probability="4.90"/>
+        <vType id="car_sedan_black" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_sedan_black.png" probability="10.40"/>
+        <vType id="car_suv_black" vClass="passenger" guiShape="passenger/van" color="255,255,255" imgFile="assets/car_suv_black.png" probability="5.60"/>
+        <vType id="car_sedan_navy" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_sedan_navy.png" probability="3.25"/>
+        <vType id="car_suv_navy" vClass="passenger" guiShape="passenger/van" color="255,255,255" imgFile="assets/car_suv_navy.png" probability="1.75"/>
+        <vType id="car_sedan_blue" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_sedan_blue.png" probability="2.60"/>
+        <vType id="car_suv_blue" vClass="passenger" guiShape="passenger/van" color="255,255,255" imgFile="assets/car_suv_blue.png" probability="1.40"/>
+        <vType id="car_sedan_red" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_sedan_red.png" probability="2.60"/>
+        <vType id="car_suv_red" vClass="passenger" guiShape="passenger/van" color="255,255,255" imgFile="assets/car_suv_red.png" probability="1.40"/>
+        <vType id="car_sedan_beige" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_sedan_beige.png" probability="1.30"/>
+        <vType id="car_suv_beige" vClass="passenger" guiShape="passenger/van" color="255,255,255" imgFile="assets/car_suv_beige.png" probability="0.70"/>
+        <vType id="car_sedan_green" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_sedan_green.png" probability="0.65"/>
+        <vType id="car_suv_green" vClass="passenger" guiShape="passenger/van" color="255,255,255" imgFile="assets/car_suv_green.png" probability="0.35"/>
+        <vType id="car_taxi" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_taxi.png" probability="3.00"/>
+    </vTypeDistribution>
+    <vType id="hwtwin_lead" vClass="passenger" guiShape="passenger/sedan" length="4.60" width="1.90" color="255,255,255" imgFile="assets/car_hw_lead.png"/>
+    <vType id="hwtwin_follow" vClass="passenger" guiShape="passenger/sedan" length="4.60" width="1.90" color="255,255,255" imgFile="assets/car_hw_follow.png"/>
+    <vType id="hwtwin_diverted" vClass="passenger" guiShape="passenger/sedan" length="4.60" width="1.90" color="255,255,255" imgFile="assets/car_hw_diverted.png"/>
+    <vType id="DEFAULT_PEDTYPE" vClass="pedestrian" color="255,255,255" guiShape="pedestrian" imgFile="assets/person.png"/>
+</additional>

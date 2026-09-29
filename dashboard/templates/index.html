@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V2N 중앙 제어 교통 최적화 — 실시간 모니터링</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body>
+<header>
+  <h1>실시간 CCTV 구역 모니터링</h1>
+  <p class="subtitle">광진구 도로망 전역 — 데이터 기반 선정 CCTV 구역 {{ zones|length }}곳</p>
+</header>
+
+<section id="summary-panel">
+  <div class="summary-card clickable" id="summary-vehicles">
+    <span class="label">현재 차량 수</span>
+    <span class="value" id="vehicle-count">0</span>
+  </div>
+  <div class="summary-card clickable" id="summary-persons">
+    <span class="label">현재 보행자 수</span>
+    <span class="value" id="person-count">0</span>
+  </div>
+  <div class="summary-card clickable" id="summary-accidents">
+    <span class="label">현재 사고 수</span>
+    <span class="value" id="accident-count">0</span>
+  </div>
+  <div class="summary-card">
+    <span class="label">경과 시간</span>
+    <span class="value" id="elapsed-time">0s</span>
+  </div>
+  <div class="summary-card clickable tracking-card" id="summary-tracking">
+    <span class="label">사고 추적 모드</span>
+    <span class="value" id="tracking-state">꺼짐</span>
+  </div>
+</section>
+
+<section id="zone-grid">
+  {% for zone_id, info in zones %}
+  <div class="zone-card" id="card-{{ zone_id }}">
+    <h2>{{ info.name }}</h2>
+    <div class="zone-metric"><span>차량 수</span><span class="zone-value" data-field="vehicle_count">-</span></div>
+    <div class="zone-metric"><span>평균 속도</span><span class="zone-value" data-field="mean_speed">-</span></div>
+    <div class="zone-metric"><span>보행자 감지</span><span class="zone-value" data-field="pedestrian_present">-</span></div>
+    <div class="zone-metric"><span>사고 감지</span><span class="zone-value" data-field="accident_present">-</span></div>
+    <p class="zone-hint">클릭해서 상세보기</p>
+  </div>
+  {% endfor %}
+  {% for zone_id, info in school_zones %}
+  <div class="zone-card school-zone-card" id="card-{{ zone_id }}" data-school-zone="true">
+    <h2>{{ info.name }}</h2>
+    <div class="zone-metric"><span>차량 수</span><span class="zone-value" data-field="vehicle_count">-</span></div>
+    <div class="zone-metric"><span>평균 속도</span><span class="zone-value" data-field="mean_speed">-</span></div>
+    <div class="zone-metric"><span>보행자 감지</span><span class="zone-value" data-field="pedestrian_present">-</span></div>
+    <div class="zone-metric"><span>사고 감지</span><span class="zone-value" data-field="accident_present">-</span></div>
+    <div class="zone-metric"><span>실물 연동</span><span class="zone-value" data-field="hardware_link">-</span></div>
+    <ul class="hardware-vehicles" data-field="hardware_vehicles"></ul>
+    <p class="zone-hint">클릭해서 상세보기</p>
+  </div>
+  {% endfor %}
+</section>
+
+<section id="alert-log">
+  <h2>최근 alert</h2>
+  <ul id="alert-list"></ul>
+</section>
+
+<div id="zone-detail-overlay" class="hidden">
+  <div id="zone-detail-panel">
+    <div id="zone-detail-header">
+      <h2 id="zone-detail-title">구역 상세</h2>
+      <button id="zone-detail-close" aria-label="닫기">&times;</button>
+    </div>
+    <div id="zone-detail-body">
+      <table id="zone-detail-table">
+        <thead id="zone-detail-thead"></thead>
+        <tbody id="zone-detail-tbody"></tbody>
+      </table>
+      <p id="zone-detail-empty" class="hidden">지금 대상이 없습니다.</p>
+    </div>
+    <div id="zone-detail-footer" class="hidden">
+      <button id="trigger-accident-btn">사고 생성</button>
+      <button id="spawn-vehicle-btn" class="hidden">차량 감지 시뮬레이션</button>
+      <button id="pedestrian-toggle-btn" class="hidden">보행자 출현 시뮬레이션</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>
