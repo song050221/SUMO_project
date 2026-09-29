@@ -24,8 +24,8 @@
         <vType id="car_suv_green" vClass="passenger" guiShape="passenger/van" color="255,255,255" imgFile="assets/car_suv_green.png" probability="0.35"/>
         <vType id="car_taxi" vClass="passenger" guiShape="passenger/sedan" color="255,255,255" imgFile="assets/car_taxi.png" probability="3.00"/>
     </vTypeDistribution>
-    <vType id="hwtwin_lead" vClass="passenger" guiShape="passenger/sedan" length="4.60" width="1.90" color="255,255,255" imgFile="assets/car_hw_lead.png"/>
-    <vType id="hwtwin_follow" vClass="passenger" guiShape="passenger/sedan" length="4.60" width="1.90" color="255,255,255" imgFile="assets/car_hw_follow.png"/>
-    <vType id="hwtwin_diverted" vClass="passenger" guiShape="passenger/sedan" length="4.60" width="1.90" color="255,255,255" imgFile="assets/car_hw_diverted.png"/>
+    <vType id="hwtwin_lead" vClass="custom1" guiShape="passenger/sedan" length="4.60" width="1.90" color="255,255,255" imgFile="assets/car_hw_lead.png"/>
+    <vType id="hwtwin_follow" vClass="custom1" guiShape="passenger/sedan" length="4.60" width="1.90" color="255,255,255" imgFile="assets/car_hw_follow.png"/>
+    <vType id="hwtwin_diverted" vClass="custom1" guiShape="passenger/sedan" length="4.60" width="1.90" color="255,255,255" imgFile="assets/car_hw_diverted.png"/>
     <vType id="DEFAULT_PEDTYPE" vClass="pedestrian" color="255,255,255" guiShape="pedestrian" imgFile="assets/person.png"/>
 </additional>

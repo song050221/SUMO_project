@@ -1259,6 +1259,21 @@ crosswalk_fix16_pairs_*.png`)로 보고 **5곳은 뺌**: #20(이웃 사거리 �
   (측정용 수요), `tls_set_nodes_2026-09-29.json`(netccfg 신호 목록 출처), `network/export*.osm`·`gwangjin.poly.xml`
   (재빌드·배경 생성 원본), `docs/`의 PDF·보고서·`Claude outputs/`.
 
+### AC. 신양초 사거리 일반 차량 통행 금지 (2026-09-30, 사용자 요청)
+
+신양초 사거리는 실물 보드를 비추는 곳이라 다른 차가 경로로 쓰지 않게 했다.
+- `network/sinyang_closed.edg.xml`: 사거리 노드 `cluster_1830064526_997781280`에 붙은 차도 6개(`-172058984`,
+  `-172058988#2`, `172058988#0`, `-172058988#0`, `-85960673#2`, `172058988#2`)의 차로를 `allow="custom1"`로.
+  `gwangjin.netccfg`의 `edge-files`로 빌드 때 적용(OSM 변환 뒤·보도 추가 전에 들어가서 index 0 = 차도). 보도는 그대로.
+  재빌드 결과 net은 이 차로·사거리 내부 차로 권한 외엔 바뀐 것 없음(diff 확인).
+- 실물 연동 차종 `hwtwin_lead/follow/diverted`는 `vClass="custom1"`(`vehicle_style.xml`, `build_visual_assets.py`),
+  vehicle_style이 없을 때 쓰는 `hwtwin`도 `hardware_twin.py`에서 custom1로 설정.
+- 권한으로 막았으므로 randomTrips·duarouter·TraCI 재경로(중앙 서버·예측 우회·사고 우회) 모두 자동으로 피한다.
+- `network/routes.xml`(7200대) 중 여기를 지나던 13대는 출발·도착을 사거리 밖 가장 가까운 edge로 바꿔 duarouter로
+  다시 계산(버린 차 없음). 측정용 `experiment_data/routes_seed*.xml`은 지웠다 - 다음 측정 때 새 net으로 다시 생성됨.
+- 확인: 900초 전체 제어 실행에서 일반 차량 진입 0대, A·B·D 경로 연동 차량 3대 모두 도착. 테스트 15개 통과.
+  이전 측정값(AA번 등)은 이 변경 전 조건이다.
+
 ## 정식 실험 결과 — 현재 상태
 
 **가장 최신/신뢰할 수 있는 결과는 위 N-5번의 `experiment_data/results_v3.csv`**(seed 1~10,

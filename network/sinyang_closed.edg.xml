@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 신양초 사거리(cluster_1830064526_997781280)에 붙은 차도 6개를 일반 차량 통행 금지로 바꾼다(2026-09-30 사용자 요청).
+     실물 보드 연동 차량(hardware_twin.py, 차종 hwtwin_*)만 custom1 차종으로 다닌다 - 이 사거리는 실물 보드를 그대로
+     비추는 곳이라 다른 차가 끼어들면 보드와 화면이 달라진다. 보도(보행자)는 그대로 둔다.
+     lane index 0은 보도가 붙기 전(OSM 변환 직후)의 차도 차로다. gwangjin.netccfg의 edge-files로 불러온다. -->
+<edges>
+    <edge id="-172058984"><lane index="0" allow="custom1"/></edge>
+    <edge id="-172058988#2"><lane index="0" allow="custom1"/></edge>
+    <edge id="172058988#0"><lane index="0" allow="custom1"/></edge>
+    <edge id="-172058988#0"><lane index="0" allow="custom1"/></edge>
+    <edge id="-85960673#2"><lane index="0" allow="custom1"/></edge>
+    <edge id="172058988#2"><lane index="0" allow="custom1"/></edge>
+</edges>

@@ -10,10 +10,12 @@
      신호: 예전 net에서 병목 교차로에 손으로 추가했던 신호(tls.set, HANDOFF J·O번) 중 새 net에서 빠진 84곳을 같은
      자리 교차점에 다시 지정(목록 experiment_data/tls_set_nodes_2026-09-29.json). 신호 합치기(tls.join)는 끔 - 켜면
      교차로 여러 개를 한 신호로 묶어 주기 238~296초짜리가 생겼고, 5 seed 측정에서 끈 쪽이 견인·그리드락이 훨씬 적었다.
+     신양초 사거리 차도는 실물 보드 연동 차량(custom1)만 다니게 막는다(sinyang_closed.edg.xml, 2026-09-30).
      실행: cd network && netconvert -c gwangjin.netccfg -->
 <netconvertConfiguration>
     <input>
         <osm-files value="export.osm"/>
+        <edge-files value="sinyang_closed.edg.xml"/>
         <type-files value="${SUMO_HOME}/data/typemap/osmNetconvert.typ.xml"/>
     </input>
     <output>

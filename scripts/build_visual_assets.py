@@ -182,8 +182,10 @@ def write_vehicle_style():
     lines.append(f'        <vType id="car_taxi" vClass="passenger" guiShape="passenger/sedan" color="{IMAGE_TINT}" '
                  f'imgFile="assets/car_taxi.png" probability="{TAXI_SHARE:.2f}"/>')
     lines.append("    </vTypeDistribution>")
-    for role in ("lead", "follow", "diverted"):  # 색은 이미지(car_hw_*.png)에 들어 있다
-        lines.append(f'    <vType id="hwtwin_{role}" vClass="passenger" guiShape="passenger/sedan" length="4.60" '
+    # 색은 이미지(car_hw_*.png)에 들어 있다. vClass custom1 - 신양초 사거리 차도는 이 차종만 다닐 수 있다
+    # (network/sinyang_closed.edg.xml, 2026-09-30)
+    for role in ("lead", "follow", "diverted"):
+        lines.append(f'    <vType id="hwtwin_{role}" vClass="custom1" guiShape="passenger/sedan" length="4.60" '
                      f'width="1.90" color="{IMAGE_TINT}" imgFile="assets/car_hw_{role}.png"/>')
     lines.append(f'    <vType id="DEFAULT_PEDTYPE" vClass="pedestrian" color="{IMAGE_TINT}" guiShape="pedestrian" '
                  'imgFile="assets/person.png"/>')

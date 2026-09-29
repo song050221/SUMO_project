@@ -201,6 +201,8 @@ class HardwareTwin:
                 traci.vehicletype.setShapeClass(HW_VTYPE, "passenger/sedan")
                 traci.vehicletype.setLength(HW_VTYPE, 4.6)
                 traci.vehicletype.setWidth(HW_VTYPE, 1.9)
+                # 신양초 사거리 차도는 custom1만 다닐 수 있다(network/sinyang_closed.edg.xml)
+                traci.vehicletype.setVehicleClass(HW_VTYPE, "custom1")
         for kind, zone in (("A", "A"), ("B", "B"), ("D", "D"), ("B_divert", "B")):
             self._routes[kind] = self._build_route(kind, zone)
         self._draw_crosswalk()
