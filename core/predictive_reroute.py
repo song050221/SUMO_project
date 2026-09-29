@@ -46,8 +46,11 @@ MAX_DETOUR_SHARE_PER_LANE = 15  # 한 사이클에 대안 edge 하나가 새로 
 class PredictiveRerouter:
     """예상 혼잡 edge를 찾아 아직 여유 있는 차량만 선제 우회시킨다."""
 
-    def __init__(self, net):
+    def __init__(self, net, record_changes=False):
         self._net = net
+        # 대시보드용: 마지막 예측 주기에 경로가 실제로 바뀐 차 [(veh_id, 바뀌기 전 남은 경로, 넘칠 것으로 본 도로)]
+        self.record_changes = record_changes
+        self.route_changes = []
         self._last_check = -PREDICT_INTERVAL
         self._lane_count_cache = {}
 
@@ -68,6 +71,7 @@ class PredictiveRerouter:
         self._predict_and_reroute(now)
 
     def _predict_and_reroute(self, now):
+        self.route_changes = []
         tt_cache = {}
 
         def travel_time(edge_id):
@@ -129,7 +133,7 @@ class PredictiveRerouter:
 
         live_ids_set = set(live_ids)
         detour_share = {}  # edge_id -> 이번 사이클에 이미 그 edge로 새로 배정된 차량 수
-        for _lead, _edge_id, veh_id in selected:
+        for _lead, edge_id, veh_id in selected:
             if veh_id not in live_ids_set:
                 continue
             try:
@@ -165,3 +169,5 @@ class PredictiveRerouter:
 
             for e in new_detour:
                 detour_share[e] = detour_share.get(e, 0) + 1
+            if self.record_changes and new_detour:
+                self.route_changes.append((veh_id, old_route[old_idx:], edge_id))

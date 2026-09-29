@@ -22,19 +22,33 @@ const ALERT_LABELS = {
   congestion_detected: "정체 감지",
   accident_detected: "사고 감지",
   obstacle_detected: "장애물 감지",
+  hardware_event: "실물 판단",
 };
 
 // 상세 패널이 보여줄 수 있는 4가지 종류. fetchUrl은 (targetId) => url, targetId는
 // zone일 때만 쓰인다(구역 하나를 고정해서 보는 것과 달리 vehicle/person/accident는
 // 항상 월드 전체 목록).
 const DETAIL_KINDS = {
+  // 구역(사거리) 상세 - 사고 추적 창과 같은 모양으로, 구역 안 차마다 지금 받는 중앙 제어를 보여 준다(2026-09-30)
   zone: {
     title: (targetId, extra) => extra || targetId,
     fetchUrl: (targetId) => `/api/zone/${targetId}/vehicles`,
     extractItems: (data) => data.vehicles,
-    headers: ["차량 ID", "목적지 edge", "예상 도착"],
-    renderRow: vehicleRowCells,
+    headers: ["차량 ID", "현재 도로", "적용 알고리즘", "예상 도착(전 → 후)"],
+    renderRow: controlRowCells,
     rowFocus: (item) => ({ kind: "vehicle", id: item.vehicle_id }),
+    onData: (data) => {
+      const spinner = '<span class="tracking-spinner" aria-label="감시 중"></span>';
+      const parts = [`화면 안 차량 ${data.vehicles.length}대`];
+      (data.accidents || []).forEach((a) => {
+        parts.push(a.remaining_s > 3600 ? `${a.road_name} 보행자 통과 대기` : `${a.road_name} 사고 ${a.remaining_s.toFixed(0)}s 후 해제`);
+      });
+      if (data.school_zone && data.hardware && data.hardware.enabled !== false) {
+        parts.push(data.hardware.connected ? "실물 보드 연결됨" : "실물 보드 대기");
+      }
+      detailTitle.innerHTML = `${data.zone_name} ${spinner} ${parts.join(" · ")}`;
+    },
+    emptyText: "지금 이 구역 도로 위에 차량이 없습니다.",
   },
   vehicle: {
     title: () => "전체 차량",
@@ -66,7 +80,7 @@ const DETAIL_KINDS = {
     fetchUrl: () => "/api/tracking",
     extractItems: (data) => data.vehicles,
     headers: ["차량 ID", "사고 도로", "적용 알고리즘", "예상 도착(전 → 후)"],
-    renderRow: trackingRowCells,
+    renderRow: controlRowCells,
     rowFocus: (item) => ({ kind: "vehicle", id: item.vehicle_id }),
     onData: (data) => {
       // 구분 기호 대신 돌아가는 로딩 표시 - 창 안에서도 추적이 계속 작동 중이라는 게 보이게
@@ -87,29 +101,52 @@ const ALGORITHM_HELP = {
   reroute: "사고 회피 재탐색: 사고 3~5칸 앞이고 남은 경로가 사고 도로를 지나는 차를 골라, 사고 도로의 통행시간을 " +
     "사실상 무한대로 만든 뒤(30초) 현재 도로 상황 기준 최단시간 경로를 다시 찾는다. 우회가 기다리는 것보다 빠를 때만 우회한다.",
   keep: "원래 경로 유지: 우회 경로를 찾아봤지만, 원래 경로로 가서 사고가 풀릴 때까지 기다리는 쪽이 더 빨라서 우회하지 않았다.",
+  predict: "정체 예측 선제 우회: 60초마다 각 차의 앞으로 90초 경로를 모아 처리량보다 많은 차가 몰릴 도로를 찾고, " +
+    "아직 45초 이상 여유가 있는 차만 먼저 다른 길로 보낸다. 한 대체 도로로 몰리지 않게 나눠 배정한다.",
+  central: "실시간 경로 재계산: 중앙 서버가 60초마다 모든 차의 경로를 지금 도로 통행시간 기준 최단시간 경로로 다시 계산한다. " +
+    "이번 계산에서 더 빠른 길이 나와 경로가 바뀐 차.",
+  signal: "신호 시간 배분: 신호마다 지금 초록 방향과 다음 방향의 대기열을 비교해, 대기가 많은 쪽은 초록을 늘리고 " +
+    "다음 방향이 훨씬 급하면 일찍 넘긴다(최소 시간은 보장).",
+  normal: "실시간 경로 재계산: 60초마다 경로를 다시 계산하지만, 지금 가는 길이 여전히 가장 빨라 그대로 가는 중.",
+  hardware: "실물 차량: 신양초 사거리의 RC카. 주행 판단(보행자 앞 정지·후진·우회)은 RC카 제어기가 직접 하고 SUMO는 그대로 따라 그린다. " +
+    "보드를 벗어나면 일반 차량으로 넘어가 위 알고리즘들을 똑같이 받는다.",
 };
 
-function trackingRowCells(r) {
+// 사고 추적 창과 구역 상세 창이 같이 쓰는 한 줄 - 차량 / 도로 / 적용 알고리즘 / 예상 도착(전 → 후)
+// 보드 보행자처럼 해제 시각이 정해지지 않은 위험(아주 큰 값)을 기다리는 경우는 초 대신 문구로
+function fmtEta(v) {
+  if (v == null) return "-";
+  return v > 500000 ? "보행자 통과 후" : `${v.toFixed(0)}s`;
+}
+
+function controlRowCells(r) {
   const action = r.action || "reroute";
   let eta;
-  if (action === "keep") {
+  if (action === "hardware") {
+    eta = `<span class="eta-normal">-</span><div class="algo-detail">실물 보드 주행 중</div>`;
+  } else if (action === "keep") {
     // 원래 경로 유지: 경로가 안 바뀌므로 전·후 같은 시간(기다렸을 때 도착)
-    const t = `${r.old_eta.toFixed(0)}s`;
+    const t = fmtEta(r.old_eta);
     eta = `<span class="eta-normal">${t}</span> → <span class="eta-new">${t}</span>`;
   } else if (r.old_eta != null) {
     // 우회: 전 = 우회 안 하고 사고 지점에서 사고가 풀릴 때까지 기다렸을 때, 후 = 우회 경로
     const saved = r.old_eta - r.new_eta;
-    const diff = saved >= 0
+    const diff = r.old_eta > 500000
+      ? `<span class="eta-saved">무기한 대기 대신 우회</span>`
+      : saved >= 0
       ? `<span class="eta-saved">${saved.toFixed(0)}s 단축</span>`
       : `<span class="eta-lost">${(-saved).toFixed(0)}s 늘어남</span>`;
-    eta = `<span class="eta-normal">${r.old_eta.toFixed(0)}s</span> → <span class="eta-new">${r.new_eta.toFixed(0)}s</span><div class="algo-detail">${diff}</div>`;
-  } else {
+    eta = `<span class="eta-normal">${fmtEta(r.old_eta)}</span> → <span class="eta-new">${fmtEta(r.new_eta)}</span><div class="algo-detail">${diff}</div>`;
+  } else if (action === "stop" || action === "decelerate") {
     // 정지·감속: 경로는 그대로 - 사고 해제까지 기다린 뒤의 도착 예상 하나만
-    eta = `<span class="eta-normal">${r.new_eta.toFixed(0)}s</span><div class="algo-detail">경로 유지 · 사고 해제 대기</div>`;
+    eta = `<span class="eta-normal">${fmtEta(r.new_eta)}</span><div class="algo-detail">경로 유지 · 사고 해제 대기</div>`;
+  } else {
+    // 신호 조정·평소 주행: 경로가 안 바뀌었으므로 지금 경로 기준 도착 예상 하나만
+    eta = `<span class="eta-normal">${fmtEta(r.new_eta)}</span>`;
   }
   const where = action === "stop" ? "사고 도로 위" : (r.hops_before != null ? `사고 ${r.hops_before}칸 전` : "");
   const detour = r.detour_edges != null ? `우회 도로 ${r.detour_edges}개` : "";
-  const detail = [where, detour].filter(Boolean).join(" · ");
+  const detail = [r.detail, where, detour].filter(Boolean).join(" · ");
   const algo = `<span class="algo-badge ${action}" title="${ALGORITHM_HELP[action] || ""}">${r.algorithm}</span><div class="algo-detail">${detail}</div>`;
   return `<td>${r.vehicle_id}</td><td>${r.road_name}</td><td>${algo}</td><td>${eta}</td>`;
 }
@@ -336,9 +373,11 @@ function hardwareVehicleLine(v) {
   if (v.released_as) return `${role} ${v.vehicle_id} · 보드 도착 → SUMO에서 계속 주행 (${v.released_as})`;
   if (v.arrived) return `${role} ${v.vehicle_id} · 도착`;
   if (!v.visible) return `${role} ${v.vehicle_id} · 인식 끊김`;
+  const dest = (v.destination_zone || "").charAt(0);
+  // 차량 호스트가 보낸 판단(event)을 먼저 보여 준다. 없으면 예전처럼 명령과 우회 여부.
+  if (v.event_label) return `${role} ${v.vehicle_id} · ${v.event_label}${dest ? ` → ${dest}` : ""}`;
   const cmd = HW_COMMAND_LABELS[v.command] || v.command || "-";
   const diverted = (v.route_id || "").startsWith("divert") ? " · 우회" : "";
-  const dest = (v.destination_zone || "").charAt(0);
   return `${role} ${v.vehicle_id} · ${cmd}${diverted}${dest ? ` → ${dest}` : ""}`;
 }
 
@@ -406,7 +445,8 @@ socket.on("zone_update", (data) => {
   data.recent_alerts.forEach((alert) => {
     const li = document.createElement("li");
     const label = ALERT_LABELS[alert.type] || alert.type;
-    li.innerHTML = `<span class="tag">${label}</span>${alert.zone_name} (${alert.edge}) — step ${alert.step}`;
+    const where = alert.type === "hardware_event" ? alert.text : `${alert.zone_name} (${alert.edge})`;
+    li.innerHTML = `<span class="tag">${label}</span>${where} — step ${alert.step}`;
     if (alert.type === "accident_detected") {
       // 사고가 어디서 났는지 바로 볼 수 있게 - 누르면 sumo-gui 카메라가 사고 지점으로 간다
       li.classList.add("clickable");

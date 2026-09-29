@@ -1290,6 +1290,28 @@ crosswalk_fix16_pairs_*.png`)로 보고 **5곳은 뺌**: #20(이웃 사거리 �
 - 확인(가짜 송신기 `--lead A --follow B`, 7200대 + 전체 제어, 헤드리스): rc 차 2대 모두 넘겨져 최고 28~30m/s로
   주행, 선행 차는 중앙 제어로 경로 2번 갱신, 둘 다 목적지 도착(순간이동 없음). 테스트 15개 통과.
 
+### AE. 사거리 상세 창을 사고 추적 창과 같은 모양으로 (2026-09-30, 사용자 요청)
+
+- 사거리(구역) 카드를 누르면 뜨는 창: 제목 = 구역 이름 + 도는 표시 + "화면 안 차량 N대 · 사고 · 실물 보드 연결".
+  표 = 차량 ID / 현재 도로 / 적용 알고리즘(배지+설명, 마우스 올리면 알고리즘 설명) / 예상 도착(전 → 후).
+  최근 제어를 받은 차가 위. 사고 추적 창과 같은 줄 함수(`controlRowCells`)를 쓴다.
+- 카메라 폭: 구역 250m·신양초 110m → 둘 다 사고 추적과 같은 200m.
+- 창에 나오는 차: CCTV 구역 도로(8~10개, 수십 m)만 세면 0~1대라 창이 비어서, 200m 화면 안의 차도 전부
+  (`_zone_view_edges`, 시작 때 sumolib로 계산). 카드의 차량 수는 예전처럼 CCTV 구역 도로 기준.
+- 적용 알고리즘 판정(`dashboard_server._control_row`, 우선순위 순):
+  실물 차(`hwtwin_`, RC카 제어기가 보낸 event 라벨) > 진행 중인 사고 대응(정지·감속·우회·유지, `accident_reroutes`) >
+  60초 안의 경로 변경(`vehicle_control` - 선제 우회 `PredictiveRerouter.route_changes`, 실시간 재계산
+  `CentralServer.route_changes`, 바뀌기 전/후 경로의 예상 도착을 그때 계산) > 앞 신호(120m 안)가 30초 안에 조정됨
+  (`SignalController.recent_adjust` - 연장/조기 전환) > 평소("실시간 경로 재계산 · 지금 경로가 최단 · N초 전 확인").
+  `route_changes` 기록은 재계산 앞뒤로 경로를 더 읽어야 해서 `record_changes=True`(대시보드)일 때만 한다 - 측정은 그대로.
+- 같이 고침: 보드 보행자 사고(`-85960673#2`)가 그 도로 위 모든 차를 세워, 보행자 지점(10m)을 이미 지난 차(보드에서
+  넘어온 rc_ 차 등)까지 멈춰 있었다 → `HARDWARE_PEDESTRIAN_OFFSET_M`+2m 안의 차만 "사고 도로 위"로 센다.
+  보행자 사고는 해제 시각이 없어(아주 큰 값) 예상 도착이 1,000,185s처럼 나오던 것 → "보행자 통과 후".
+- 실물 차 판단 표시: 팀원 저장소(invuc02/capstone-sumo-bridge)의 `sumo_patches/2026-09-29_hardware-event-display.patch`를
+  사용자 허락을 받아 적용(겹친 3곳은 손으로 맞춤). 차량 호스트가 보내는 `event` 코드(pedestrian_stop, divert_wait,
+  reverse, diverting 등)를 `EVENT_LABELS`로 한국어로 바꿔 신양초 카드·구역 상세 창("실물 · 보행자 앞 정지선 정지")에 보이고,
+  정지선 정지·우회 준비·후진·우회로 바뀌는 순간을 "실물 판단" 알림으로 올린다. fake_hardware_sender도 event를 보낸다.
+
 ## 정식 실험 결과 — 현재 상태
 
 **가장 최신/신뢰할 수 있는 결과는 위 N-5번의 `experiment_data/results_v3.csv`**(seed 1~10,

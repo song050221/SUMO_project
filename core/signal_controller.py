@@ -95,6 +95,8 @@ class SignalController:
 
         self._last_check = -CHECK_INTERVAL
         self._phase_seen = {}  # tid -> (phase_idx, 그 phase가 시작된 시각)
+        # 대시보드용: 신호별 마지막 조정 {tid: (시각, "extend"|"cutoff", 지금 방향 대기열, 다음 방향 대기열, 남긴 초)}
+        self.recent_adjust = {}
 
     def step(self, now):
         """CHECK_INTERVAL마다 모든 교차로를 점검한다. 그 사이 호출은 조용히 무시한다."""
@@ -139,6 +141,7 @@ class SignalController:
         if next_queue > own_queue * CUTOFF_RATIO and remaining > EARLY_CUTOFF_DURATION:
             # 다음 방향이 훨씬 더 급함 - 최소 시간은 이미 채웠으니 곧 넘겨준다
             traci.trafficlight.setPhaseDuration(tid, EARLY_CUTOFF_DURATION)
+            self.recent_adjust[tid] = (now, "cutoff", own_queue, next_queue, EARLY_CUTOFF_DURATION)
             return
 
         if own_queue < QUEUE_THRESHOLD or elapsed >= phase.maxDur:
@@ -149,3 +152,4 @@ class SignalController:
                          phase.maxDur - elapsed)
         if remaining < extension:
             traci.trafficlight.setPhaseDuration(tid, extension)
+            self.recent_adjust[tid] = (now, "extend", own_queue, next_queue, extension)

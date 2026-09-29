@@ -58,13 +58,29 @@ class Car:
         x, y, _ = point_at(self.path, self.s)
         return x, y
 
+    def event(self):
+        """차량 호스트의 판단 코드(INTERFACE.md의 event)를 이 흉내 판단에 맞춰 붙인다."""
+        if self.arrived:
+            return "arrived"
+        if self.reason.startswith("reversing"):
+            return "reverse"
+        if self.reason.startswith("vehicle proximity stop"):
+            return "divert_wait" if self.blocked_since is not None and self.role == "follow" else "gap_stop"
+        if self.reason.startswith("pedestrian ahead: holding"):
+            return "pedestrian_stop"
+        if self.reason.startswith("pedestrian ahead: creeping"):
+            return "pedestrian_approach"
+        if self.reason.startswith("waiting"):
+            return "waiting_start"
+        return "diverting" if self.route_id.startswith("divert") else "driving"
+
     def payload(self):
         x, y = self.xy()
         moving = self.command in ("F", "L", "R", "B")
         speed = CAR_SPEED if moving else 0.0
         return {
             "vehicle_id": self.vid, "marker_id": self.marker, "visible": True,
-            "command": self.command, "reason": self.reason,
+            "command": self.command, "reason": self.reason, "event": self.event(),
             "speed_pwm": 50 if moving else 0, "steering_percent": 0,
             "route_id": self.route_id, "start_zone": f"C_{'lead' if self.role == 'lead' else 'follower'}_start",
             "destination_zone": self.dest_zone, "start_delay_seconds": 0.0, "arrived": self.arrived,

@@ -22,9 +22,9 @@ from cctv_detector import (
     CCTV_ZONES, SCHOOL_ZONES, ALL_ZONES, poll_all_zones, zone_status,
     get_active_accident_edges, get_active_accidents, edge_midpoint, trigger_accident,
     route_shape, spawn_hardware_vehicle, set_hardware_pedestrian_present,
-    edge_point_near_start, HARDWARE_PEDESTRIAN_EDGE, road_name,
+    edge_point_near_start, HARDWARE_PEDESTRIAN_EDGE, HARDWARE_PEDESTRIAN_OFFSET_M, road_name,
 )
-from hardware_twin import HardwareTwin, UdpReceiver, load_config as load_hardware_twin_config
+from hardware_twin import HardwareTwin, UdpReceiver, is_hardware_twin, load_config as load_hardware_twin_config
 from gui_viewport import (write_zone_viewport, zone_bounds, point_bounds, ACCIDENT_COLOR, KONKUK_UNIV_COORD,
                           KONKUK_UNIV_VIEW_WIDTH_M)
 from central_server import CentralServer
@@ -72,15 +72,14 @@ _sim_started = False
 # 카메라 포커스 요청. Flask 요청 스레드가 쓰고, simulation_loop 스레드가 읽어서 처리한다.
 # kind: "zone" | "vehicle" | "person" | "accident", id: 그 종류의 식별자.
 _pending_focus = None
-_FOCUS_VIEW_WIDTH_M = 250    # 구역 포커스 시 화면에 보일 실제 폭(m)
+# 구역 포커스 시 화면에 보일 실제 폭(m) - 사고 추적 화면과 같은 200m(2026-09-30 사용자 요청, 전엔 250)
+_FOCUS_VIEW_WIDTH_M = 200
 _POINT_FOCUS_WIDTH_M = 80    # 차량/보행자 등 개별 대상 포커스 시 화면 폭(m) - 구역보다 좁게 확대
 # 사고는 주변 도로 상황(막히는 곳·우회하는 차)까지 보이게 넓게 - 80m는 사고 지점만 너무 클로즈업됐다(2026-09-29)
 _ACCIDENT_FOCUS_WIDTH_M = 200  # 450 → 300 → 200, 사용자 요청으로 단계적으로 확대
 ACCIDENT_MARKER_M = 10  # 사고 표시(빨간 원) 지름(m)
-# 어린이보호구역은 CCTV 구역(교차로 여러 개 아우르는 넓은 클러스터)과 달리 사거리
-# 하나뿐이라, 같은 250m를 쓰면 화면에 비해 너무 작게 보인다 - 사거리가 화면에 꽉 차도록
-# 훨씬 좁게 확대한다.
-_SCHOOL_ZONE_FOCUS_VIEW_WIDTH_M = 110
+# 어린이보호구역도 사고 추적 화면과 같은 200m로 맞춘다(2026-09-30 사용자 요청, 전엔 사거리만 꽉 차게 110m).
+_SCHOOL_ZONE_FOCUS_VIEW_WIDTH_M = 200
 
 # "사고 생성" 버튼 요청. 포커스와 같은 이유로 simulation_loop 스레드에서만 처리한다.
 _pending_accident_zone = None
@@ -109,6 +108,13 @@ accident_reroutes = []            # 사고 때문에 정지·감속·우회한 �
 _accident_reroute_seen = set()    # (사고 edge, 차량, 조치) - 같은 사고로 같은 차·같은 조치를 두 번 올리지 않게
 MAX_ACCIDENT_REROUTES = 300
 
+# 구역 상세 창의 "적용 알고리즘" 칸 - 차마다 마지막으로 받은 경로 변경(실시간 재계산·선제 우회).
+# 사고 대응은 accident_reroutes, 신호 조정은 SignalController.recent_adjust에서 따로 찾는다.
+vehicle_control = {}  # veh_id -> {"time", "action", "algorithm", "detail", "old_eta", "new_eta"}
+CONTROL_SHOW_S = 60.0          # 경로 변경을 "지금 적용 중"으로 보여 주는 시간(실시간 재계산 주기와 같음)
+SIGNAL_SHOW_S = 30.0           # 신호 조정을 보여 주는 시간
+SIGNAL_NEAR_M = 120.0          # 다음 신호까지 이 거리 안이면 그 신호 조정의 영향을 받는 차로 본다
+
 # 차량별 "방금 경로 최적화됨" 상태. simulation_loop만 쓰고 읽는다.
 _recent_optimizations = {}  # veh_id -> {"old_eta", "new_eta", "until", "orig_color"}
 OPTIMIZATION_BADGE_DURATION = 15.0  # s, 최적화 배지를 유지하는 시간
@@ -123,6 +129,9 @@ _WORLD_SNAPSHOT_INTERVAL = 10
 # 그대로 읽는다. TraCI는 simulation_loop 스레드에서만 부를 수 있어서(zone-focus와 동일한
 # 이유), Flask 요청 시점에 직접 조회하지 않고 미리 계산해 둔다.
 zone_vehicle_details = {zid: [] for zid in ALL_ZONES}
+# 구역 상세 창은 카메라가 보여 주는 200m 화면 안의 차를 모두 보여 준다 - CCTV 구역 도로(8~10개, 수십 m)만
+# 세면 차가 0~1대뿐이라 창이 거의 비었다(2026-09-30). 시작할 때 화면 안 도로를 한 번 구해 둔다.
+_zone_view_edges = {}
 world_vehicles = []
 world_persons = []
 world_accidents = []
@@ -162,6 +171,70 @@ def _compute_eta(veh_id, current_time):
     return current_time + total
 
 
+def _record_route_changes(changes, now, action, algorithm):
+    """중앙 서버·선제 우회가 경로를 바꾼 차마다 바뀌기 전/후 예상 도착을 남긴다.
+    같은 스텝에 여러 대가 바뀌므로 도로별 통행시간을 한 번씩만 읽는다."""
+    tt = {}
+
+    def rest_eta(edges):
+        total = 0.0
+        for e in edges:
+            if e not in tt:
+                tt[e] = edge_traveltime(e)
+            total += tt[e]
+        return now + total
+
+    live = set(traci.vehicle.getIDList())
+    for change in changes:
+        vid, old_rest = change[0], change[1]
+        if vid not in live:
+            continue
+        new_rest = traci.vehicle.getRoute(vid)[traci.vehicle.getRouteIndex(vid):]
+        detail = f"새 도로 {sum(1 for e in new_rest if e not in set(old_rest))}개로 변경"
+        if len(change) > 2:
+            detail = f"{road_name(change[2])} 정체 예상 · " + detail
+        vehicle_control[vid] = {"time": now, "action": action, "algorithm": algorithm, "detail": detail,
+                                "old_eta": rest_eta(old_rest), "new_eta": rest_eta(new_rest)}
+
+
+def _control_row(vid, edge, now, server, signals, accident_rows, active_acc, hardware_cars):
+    """구역 상세 창 한 줄: 이 차가 지금 어떤 중앙 제어를 받고 있는지(사고 추적 창과 같은 모양).
+    우선순위: 실물 차 > 사고 대응(정지·감속·우회·유지) > 선제 우회·실시간 재계산으로 경로 변경 > 신호 조정 > 평소."""
+    base = {"vehicle_id": vid, "edge": edge, "road_name": "교차로 안" if edge.startswith(":") else road_name(edge),
+            "hops_before": None, "detour_edges": None, "detail": None, "old_eta": None, "time": -1.0}
+    if is_hardware_twin(vid):
+        # 실물 차의 판단은 RC카 제어기(차량 호스트)가 traffic_state의 event로 보내 준다(팀원 저장소 INTERFACE.md)
+        car = hardware_cars.get(vid, {})
+        label = car.get("event_label") or "-"
+        dest = (car.get("destination_zone") or "")[:1]
+        detail = "RC카 제어기가 직접 판단" + (f" · 목적지 {dest}" if dest else "")
+        return {**base, "action": "hardware", "algorithm": f"실물 · {label}", "detail": detail,
+                "new_eta": None, "time": now + 1}
+    acc = accident_rows.get(vid)
+    if acc and acc["accident_edge"] in active_acc:
+        return {**base, **{k: acc[k] for k in ("action", "algorithm", "hops_before", "detour_edges",
+                                                "old_eta", "new_eta")},
+                "detail": f"{acc['road_name']} 사고", "time": float(acc["step"])}
+    ctl = vehicle_control.get(vid)
+    if ctl and now - ctl["time"] <= CONTROL_SHOW_S:
+        return {**base, **ctl}
+    eta = _compute_eta(vid, now)
+    nxt = traci.vehicle.getNextTLS(vid)
+    if nxt:
+        tls_id, _link, dist, _state = nxt[0]
+        adj = signals.recent_adjust.get(tls_id)
+        if dist <= SIGNAL_NEAR_M and adj and now - adj[0] <= SIGNAL_SHOW_S:
+            t, kind, own_q, next_q, secs = adj
+            detail = (f"대기 {own_q}대 방향 초록 {secs:.0f}s 연장" if kind == "extend"
+                      else f"다음 방향 대기 {next_q}대 → {secs:.0f}s 뒤 전환")
+            return {**base, "action": "signal", "algorithm": "신호 시간 배분",
+                    "detail": f"앞 신호 {dist:.0f}m · {detail}", "new_eta": eta, "time": t}
+    last = server.vehicle_routes.get(vid)
+    since = f"{now - last:.0f}s 전 확인" if last is not None else "출발 대기"
+    return {**base, "action": "normal", "algorithm": "실시간 경로 재계산",
+            "detail": f"지금 경로가 최단 · {since}", "new_eta": eta}
+
+
 def _vehicle_record(vid, edge, now):
     route = traci.vehicle.getRoute(vid)
     opt = _recent_optimizations.get(vid)
@@ -175,14 +248,31 @@ def _vehicle_record(vid, edge, now):
     }
 
 
-def _update_zone_vehicle_details(current_time):
-    """구역별 차량 상세정보(목적지/ETA/최적화 배지)를 다시 계산해 둔다."""
+def _compute_zone_view_edges(net):
+    """구역마다 포커스 화면(중심에서 _FOCUS_VIEW_WIDTH_M/2 안)에 걸친 차도 edge 목록."""
+    for zone_id in ALL_ZONES:
+        xmin, ymin, xmax, ymax = zone_bounds(zone_id, _FOCUS_VIEW_WIDTH_M)
+        cx, cy, half = (xmin + xmax) / 2, (ymin + ymax) / 2, (xmax - xmin) / 2
+        edges = {e.getID() for e, _d in net.getNeighboringEdges(cx, cy, r=half)
+                 if e.getFunction() != "internal" and (e.allows("passenger") or e.allows("custom1"))}
+        _zone_view_edges[zone_id] = sorted(edges | set(ALL_ZONES[zone_id]["edges"]))
+
+
+def _update_zone_vehicle_details(current_time, server, signals):
+    """구역별 차량 목록과 각 차가 받는 중앙 제어(적용 알고리즘·예상 도착 전→후)를 다시 계산해 둔다.
+    최근에 제어를 받은 차가 위, 평소 주행 차는 아래."""
     now = current_time
+    accident_rows = {}
+    for r in reversed(accident_reroutes):  # 최신이 앞이라 거꾸로 돌면 차마다 가장 최근 기록이 남는다
+        accident_rows[r["vehicle_id"]] = r
+    active_acc = get_active_accidents()
+    hardware_cars = {v["sumo_id"]: v for v in (summary.get("hardware") or {}).get("vehicles", [])}
     for zone_id, info in ALL_ZONES.items():
         records = []
-        for edge in info["edges"]:
+        for edge in _zone_view_edges.get(zone_id) or info["edges"]:
             for vid in traci.edge.getLastStepVehicleIDs(edge):
-                records.append(_vehicle_record(vid, edge, now))
+                records.append(_control_row(vid, edge, now, server, signals, accident_rows, active_acc, hardware_cars))
+        records.sort(key=lambda r: (-r["time"], r["vehicle_id"]))
         zone_vehicle_details[zone_id] = records
 
 
@@ -226,7 +316,7 @@ def _accident_marker_point(edge_id):
     문제가 있어(정수 나눗셈), 이 edge에서 마커가 교차로 반대편 도로 맨 끝에 찍히는
     원인이었다."""
     if edge_id == HARDWARE_PEDESTRIAN_EDGE:
-        return edge_point_near_start(edge_id, 10.0)
+        return edge_point_near_start(edge_id, HARDWARE_PEDESTRIAN_OFFSET_M)
     return edge_midpoint(edge_id)
 
 
@@ -338,9 +428,11 @@ def simulation_loop():
             viewport_path = write_zone_viewport(coord=KONKUK_UNIV_COORD, view_width_m=KONKUK_UNIV_VIEW_WIDTH_M)
         cmd += ["--gui-settings-file", viewport_path]
     traci.start(cmd)
-    server = CentralServer()
+    server = CentralServer(record_changes=True)
     signals = SignalController()
-    predictor = PredictiveRerouter(sumolib.net.readNet(NET_FILE))
+    net = sumolib.net.readNet(NET_FILE)
+    predictor = PredictiveRerouter(net, record_changes=True)
+    _compute_zone_view_edges(net)
     remover = StuckVehicleRemover()
     rendered_accident_pois = set()
     hardware_twin = _start_hardware_twin()
@@ -389,6 +481,14 @@ def simulation_loop():
             except traci.exceptions.TraCIException as exc:
                 print(f"[dashboard] 실물 연동 반영 실패: {exc}")
             summary["hardware"] = hardware_twin.status()
+            # 실물 차의 판단(보행자 앞 정지, 우회 준비, 후진, 우회)을 알림 목록에 올린다
+            focus_zone = hardware_twin.cfg.get("focus_zone", "school_zone_1")
+            for text in hardware_twin.pop_event_alerts():
+                recent_alerts.insert(0, {
+                    "zone": focus_zone, "zone_name": ALL_ZONES.get(focus_zone, {}).get("name", ""),
+                    "edge": None, "type": "hardware_event", "text": text, "step": step,
+                })
+                del recent_alerts[MAX_RECENT_ALERTS:]
             connected = summary["hardware"]["connected"]
             if connected and not hardware_was_connected and hardware_twin.cfg.get("auto_focus_on_connect"):
                 # 실물이 처음 연결되면 카메라를 신양초 사거리로 한 번 옮긴다(시연 중 다른 곳을 보고 있을 수 있음)
@@ -396,6 +496,9 @@ def simulation_loop():
             hardware_was_connected = connected
 
         server.initial_optimization()
+        if server.route_changes:
+            _record_route_changes(server.route_changes, traci.simulation.getTime(), "central", "실시간 경로 재계산")
+            server.route_changes = []
         alerts = poll_all_zones()
         commands = server.handle_cctv_alert(alerts)
 
@@ -481,7 +584,12 @@ def simulation_loop():
         server.update_throughput()
         signals.step(now)
         predictor.step(now)
-        _update_zone_vehicle_details(now)
+        if predictor.route_changes:
+            _record_route_changes(predictor.route_changes, now, "predict", "정체 예측 선제 우회")
+            predictor.route_changes = []
+        for vid in [v for v in vehicle_control if v not in vehicle_ids]:
+            del vehicle_control[vid]
+        _update_zone_vehicle_details(now, server, signals)
         if step % _WORLD_SNAPSHOT_INTERVAL == 0:
             _update_world_snapshots(now)
 
@@ -573,9 +681,15 @@ def api_zone_vehicles(zone_id):
     """
     if zone_id not in ALL_ZONES:
         return jsonify({"error": f"unknown zone: {zone_id}"}), 404
+    zone_edges = set(ALL_ZONES[zone_id]["edges"])
+    accidents = [{"edge": e, "road_name": road_name(e), "remaining_s": max(0.0, end - summary["elapsed_step"])}
+                 for e, end in get_active_accidents().items() if e in zone_edges]
     return jsonify({
         "zone_id": zone_id,
         "zone_name": ALL_ZONES[zone_id]["name"],
+        "school_zone": zone_id in SCHOOL_ZONES,
+        "hardware": summary.get("hardware") if zone_id in SCHOOL_ZONES else None,
+        "accidents": accidents,
         "vehicles": zone_vehicle_details.get(zone_id, []),
     })
 

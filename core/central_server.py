@@ -19,8 +19,12 @@ class CentralServer:
     # 불러주는 것만으로 네트워크 전역의 실시간 정체를 우회하게 만들 수 있다.
     REOPTIMIZE_INTERVAL = 60.0
 
-    def __init__(self):
+    def __init__(self, record_changes=False):
         self.vehicle_routes = {}  # veh_id -> 마지막으로 재계산한 시각(s)
+        # 대시보드용: 이번 호출에서 경로가 실제로 바뀐 차 [(veh_id, 바뀌기 전 남은 경로)].
+        # 재계산 앞뒤로 경로를 한 번씩 더 읽어야 해서 측정 때는 끈다(record_changes=False).
+        self.record_changes = record_changes
+        self.route_changes = []
         self.arrived_count = 0
         self._known_arrived = set()
 
@@ -35,14 +39,21 @@ class CentralServer:
         재계산(차량마다 네트워크 전역 최단경로 탐색이라 비용이 작지 않음)을 막는다.
         """
         now = traci.simulation.getTime()
+        self.route_changes = []
         for veh_id in traci.vehicle.getIDList():
             if is_hardware_twin(veh_id):
                 continue  # 실물 차량의 경로는 차량 호스트가 정한다
             last_time = self.vehicle_routes.get(veh_id)
             if last_time is not None and now - last_time < self.REOPTIMIZE_INTERVAL:
                 continue
+            if self.record_changes:
+                old_rest = traci.vehicle.getRoute(veh_id)[traci.vehicle.getRouteIndex(veh_id):]
             traci.vehicle.rerouteTraveltime(veh_id)
             self.vehicle_routes[veh_id] = now
+            if self.record_changes and last_time is not None:  # 출발 직후 첫 계산은 "변경"으로 치지 않는다
+                new_rest = traci.vehicle.getRoute(veh_id)[traci.vehicle.getRouteIndex(veh_id):]
+                if tuple(new_rest) != tuple(old_rest):
+                    self.route_changes.append((veh_id, list(old_rest)))
 
     def handle_cctv_alert(self, alerts):
         """cctv_detector.py의 알림(차량 이상상황 + 보행자 감지) 수신 시 재계산.

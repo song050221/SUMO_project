@@ -129,6 +129,58 @@ def pedestrian_hazards(message):
     return [h for h in message.get("hazards", []) if h.get("hazard_type") == "person"]
 
 
+# 차량 호스트의 판단 코드(traffic_state 차량 항목의 event, INTERFACE.md) -> 대시보드 표시 문구.
+# 차량 쪽이 reason 문자열 대신 짧은 코드로 보내므로 SUMO는 해석하지 않고 그대로 보여 준다.
+EVENT_LABELS = {
+    "driving": "주행",
+    "diverting": "B 우회로 주행",
+    "pedestrian_slow": "보행자 접근 · 감속",
+    "pedestrian_approach": "정지선으로 접근",
+    "pedestrian_stop": "보행자 앞 정지선 정지",
+    "pedestrian_wait": "보행자 통과 · 3초 대기",
+    "divert_wait": "앞차 정지 · 우회 준비",
+    "reverse": "후진해 각 만들기",
+    "reverse_guard": "후진 중 뒤차 근접 · 정지",
+    "gap_stop": "앞차 간격 정지",
+    "gap_slow": "앞차 간격 감속",
+    "boundary_stop": "도로 경계 정지",
+    "boundary_slow": "도로 경계 감속",
+    "entry_blocked": "출발 자세 불가",
+    "obstacle_stop": "장애물 정지",
+    "marker_lost": "인식 끊김",
+    "waiting_start": "출발 대기",
+    "arrived": "도착",
+    "stopped": "정지",
+}
+# 이 판단으로 바뀌는 순간은 대시보드 알림 목록에도 올린다(시연에서 "왜 섰나, 왜 돌았나"를 보여 줌).
+ALERT_EVENTS = ("pedestrian_stop", "divert_wait", "reverse", "diverting")
+
+
+def vehicle_event(vehicle):
+    """차량 항목의 판단 코드. event가 없는 예전 메시지는 route_id와 command로 짐작한다."""
+    event = vehicle.get("event")
+    if event:
+        return event
+    if vehicle.get("arrived"):
+        return "arrived"
+    if vehicle.get("command") == "B":
+        return "reverse"
+    if vehicle.get("command") == "S":
+        return "stopped"
+    if (vehicle.get("route_id") or "").startswith("divert"):
+        return "diverting"
+    return "driving"
+
+
+def event_alert(vehicle_id, vehicle, previous_event):
+    """판단이 알림 대상(ALERT_EVENTS)으로 바뀌었으면 알림 문구를, 아니면 None을 돌려준다."""
+    event = vehicle_event(vehicle)
+    if event == previous_event or event not in ALERT_EVENTS:
+        return None
+    role = {"lead": "선행", "follow": "후행"}.get(vehicle_role(vehicle), "차량")
+    return f"{role} {vehicle_id}: {EVENT_LABELS.get(event, event)}"
+
+
 # ---------------------------------------------------------------- UDP 수신
 
 class UdpReceiver:
@@ -192,6 +244,7 @@ class HardwareTwin:
         self._ped_last_seen = None
         self._ped_poi = False
         self._last_message = None
+        self._event_alerts = []   # 판단이 바뀐 순간의 알림 문구. 대시보드가 pop_event_alerts로 가져간다.
         self._ready = False
         self._role_types = None
         self._released = {}    # 넘긴 SUMO id -> 차량 호스트 vehicle_id
@@ -321,6 +374,10 @@ class HardwareTwin:
                                                "pose": None, "arrived": False})
             car["last_seen"] = wall
             car["info"] = v
+            alert = event_alert(hid, v, car.get("event"))
+            if alert:
+                self._event_alerts.append(alert)
+            car["event"] = vehicle_event(v)
             sumo_id = car["sumo_id"]
             if v.get("arrived"):
                 if not car["arrived"]:
@@ -527,6 +584,10 @@ class HardwareTwin:
             traci.poi.setPosition(PEDESTRIAN_POI, x, y)
 
     # --- 대시보드 표시용
+    def pop_event_alerts(self):
+        alerts, self._event_alerts = self._event_alerts, []
+        return alerts
+
     def status(self):
         message, received_at = self.receiver.latest()
         age = None if received_at is None else time.monotonic() - received_at
@@ -538,6 +599,8 @@ class HardwareTwin:
                 "sumo_id": car["sumo_id"],
                 "role": vehicle_role(v),
                 "command": v.get("command"),
+                "event": vehicle_event(v),
+                "event_label": EVENT_LABELS.get(vehicle_event(v), vehicle_event(v)),
                 "route_id": v.get("route_id"),
                 "destination_zone": v.get("destination_zone"),
                 "visible": bool(v.get("visible")),

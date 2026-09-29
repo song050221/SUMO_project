@@ -8,8 +8,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "core"))
 
 from hardware_twin import (  # noqa: E402
-    RELEASED_PREFIX, is_hardware_twin, piecewise_map, point_at, polyline_length, project_to_polyline,
-    pedestrian_hazards, route_kind, vehicle_role,
+    EVENT_LABELS, RELEASED_PREFIX, event_alert, is_hardware_twin, piecewise_map, point_at, polyline_length,
+    project_to_polyline, pedestrian_hazards, route_kind, vehicle_event, vehicle_role,
 )
 
 CONFIG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "configs", "hardware_twin.json")
@@ -60,6 +60,25 @@ def test_role_comes_from_route_id_not_car_number():
     assert vehicle_role({"vehicle_id": "car_2", "route_id": "follow_C_to_A"}) == "follow"
     assert vehicle_role({"vehicle_id": "car_2", "route_id": "divert_to_B_x680"}) == "follow"
     assert vehicle_role({"vehicle_id": "car_1", "route_id": None}) == "unknown"
+
+
+def test_event_comes_from_vehicle_host_or_is_guessed():
+    assert vehicle_event({"event": "pedestrian_stop", "command": "S"}) == "pedestrian_stop"
+    # event가 없는 예전 메시지
+    assert vehicle_event({"command": "B"}) == "reverse"
+    assert vehicle_event({"command": "L", "route_id": "divert_to_B_x740+plan"}) == "diverting"
+    assert vehicle_event({"command": "S", "arrived": True}) == "arrived"
+    assert vehicle_event({"command": "F", "route_id": "lead_C_to_A"}) == "driving"
+    assert all(label for label in EVENT_LABELS.values())
+
+
+def test_event_alert_only_when_changing_into_notable_event():
+    stop = {"event": "pedestrian_stop", "route_id": "lead_C_to_A"}
+    assert event_alert("car_2", stop, "driving") == "선행 car_2: 보행자 앞 정지선 정지"
+    assert event_alert("car_2", stop, "pedestrian_stop") is None      # 이미 그 상태
+    assert event_alert("car_2", {"event": "gap_slow", "route_id": "lead_C_to_A"}, "driving") is None
+    divert = {"event": "divert_wait", "route_id": "follow_C_to_A"}
+    assert event_alert("car_3", divert, "gap_stop") == "후행 car_3: 앞차 정지 · 우회 준비"
 
 
 def test_only_person_hazards_count_as_pedestrian():

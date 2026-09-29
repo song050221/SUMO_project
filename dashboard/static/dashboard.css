@@ -77,6 +77,11 @@ header h1 { margin: 0 0 4px; font-size: 1.6rem; }
 .algo-badge.stop { background: #3a1520; color: #ff6b7a; }
 .algo-badge.decelerate { background: #3a2e14; color: #ffc15a; }
 .algo-badge.keep { background: #16233a; color: #4a9eff; }
+.algo-badge.predict { background: #2a1838; color: #c98bff; }
+.algo-badge.central { background: #3a1534; color: #ff6fd8; }
+.algo-badge.signal { background: #143228; color: #4fd07a; }
+.algo-badge.normal { background: #1f2330; color: #b7bdcc; }
+.algo-badge.hardware { background: #3a2a10; color: #ffa53a; }
 .eta-saved { color: #4fd07a; font-weight: 600; }
 .eta-lost { color: #ff6b7a; font-weight: 600; }
 

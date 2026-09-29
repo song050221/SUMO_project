@@ -231,6 +231,7 @@ def trigger_accident(zone_id, current_time):
 
 # 신양초 어린이보호구역 하드웨어 연동 지점. school_zones.json의 arms와 일치한다.
 HARDWARE_PEDESTRIAN_EDGE = "-85960673#2"  # LED 보행자가 나타나는 위치(NW 진출로 초입부)
+HARDWARE_PEDESTRIAN_OFFSET_M = 10.0  # 보행자가 건너는 지점(edge 시작에서 m) - configs/hardware_twin.json pedestrian.offset과 같게
 HARDWARE_SPAWN_EDGE = "-172058984"        # 카메라가 차량을 인식하면 여기서 SUMO 차량을 만든다(SE 진입로, 일방통행 시작점)
 # 하드웨어 신호(LED on/off)로 지속시간이 결정되는 사고라 고정 시간(ACCIDENT_DURATION)을
 # 안 쓴다. float('inf')는 JSON 직렬화가 안 돼서(JS의 JSON.parse가 리터럴 Infinity를
@@ -388,6 +389,10 @@ def detect_accidents(zone_id, zone_edges):
             continue
         vehicles_in_hazard_edge = list(traci.edge.getLastStepVehicleIDs(edge))
         if edge == HARDWARE_PEDESTRIAN_EDGE:
+            # 보드 보행자는 도로 초입부(HARDWARE_PEDESTRIAN_OFFSET_M)를 건넌다 - 이미 그 앞을 지난 차(보드에서 나와
+            # 일반 차량으로 넘어간 RC카 등)까지 세우면 보행자 뒤에서 멈춰 서게 된다(2026-09-30)
+            vehicles_in_hazard_edge = [v for v in vehicles_in_hazard_edge
+                                       if traci.vehicle.getLanePosition(v) <= HARDWARE_PEDESTRIAN_OFFSET_M + 2.0]
             # 하드웨어 스폰 지점(HARDWARE_SPAWN_EDGE)이 사고 지점에서 1~2 hop밖에
             # 안 떨어져 있어(2026-09-29 재빌드 후 1 hop - 사거리 안 0.2m 연결 도로가 없어짐) 기본 NEARBY_HOPS로는 항상
             # "감속 대상"에만 걸리고 "우회 대상"엔 못 들어간다. 이 지점만
