@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>V2N 중앙 제어 알고리즘</title>
+<link rel="stylesheet" href="slides.css">
+</head>
+<body>
+
+<!-- 1. 표지 -->
+<section class="slide cover">
+  <div class="cover-inner">
+    <p class="kicker">2026 창의설계경진대회 · 광진구 V2N 교통 시뮬레이션</p>
+    <h1>V2N 중앙 제어 알고리즘</h1>
+    <p class="subtitle">사고 대응 · 실시간 경로 재계산 · 정체 예측 우회 · 신호 시간 배분</p>
+    <div class="cover-stats">
+      <div><b>18,521</b><span>차도 구간(edge)</span></div>
+      <div><b>197</b><span>신호 교차로</span></div>
+      <div><b>7,200</b><span>시간당 차량</span></div>
+      <div><b>~900</b><span>시간당 보행자</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. 전체 구조 -->
+<section class="slide">
+  <h2><span class="num">01</span>전체 구조 — 관제탑 하나가 도시 전체를 본다</h2>
+  <div class="cols">
+    <div class="col-6">
+      <p class="lead">V2N(Vehicle-to-Network): 모든 차가 이동통신망으로 중앙 서버에 위치·목적지를 보내고, 서버가 도시 전체를 보고 명령한다.</p>
+      <table class="kv">
+        <tr><th>입력</th><td>차량 위치·경로(V2N), CCTV 9곳 감지, 도로망 전역 사고 신고</td></tr>
+        <tr><th>판단</th><td>4개 알고리즘 — 사고 대응 / 실시간 재계산 / 정체 예측 / 신호 배분</td></tr>
+        <tr><th>출력</th><td>차별 명령(정지·감속·경로 변경), 신호 초록 시간 변경</td></tr>
+        <tr><th>주기</th><td>매 1초 판단, 무거운 계산은 5초·60초 주기로 나눔</td></tr>
+      </table>
+      <p class="note">구현: SUMO(오픈소스 교통 시뮬레이터) + TraCI(실행 중 시뮬레이션을 파이썬으로 제어하는 API)</p>
+    </div>
+    <div class="col-6">
+      <svg viewBox="0 0 560 420" class="diagram">
+        <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#475569"/></marker></defs>
+        <rect x="190" y="20" width="180" height="56" rx="10" class="box dark"/>
+        <text x="280" y="44" class="t w">중앙 서버</text><text x="280" y="64" class="t ws">V2N 관제</text>
+        <rect x="10" y="150" width="125" height="64" rx="10" class="box c-red"/>
+        <text x="72" y="178" class="t">① 사고 대응</text><text x="72" y="198" class="t s">매 1초</text>
+        <rect x="148" y="150" width="125" height="64" rx="10" class="box c-blue"/>
+        <text x="210" y="178" class="t">② 실시간</text><text x="210" y="198" class="t s">경로 재계산 · 60초</text>
+        <rect x="286" y="150" width="125" height="64" rx="10" class="box c-purple"/>
+        <text x="348" y="178" class="t">③ 정체 예측</text><text x="348" y="198" class="t s">선제 우회 · 60초</text>
+        <rect x="424" y="150" width="125" height="64" rx="10" class="box c-green"/>
+        <text x="486" y="178" class="t">④ 신호</text><text x="486" y="198" class="t s">시간 배분 · 5초</text>
+        <path d="M280,76 L72,148" class="ln" marker-end="url(#a)"/>
+        <path d="M280,76 L210,148" class="ln" marker-end="url(#a)"/>
+        <path d="M280,76 L348,148" class="ln" marker-end="url(#a)"/>
+        <path d="M280,76 L486,148" class="ln" marker-end="url(#a)"/>
+        <rect x="40" y="290" width="300" height="56" rx="10" class="box light"/>
+        <text x="190" y="314" class="t">차량 7,200대</text><text x="190" y="334" class="t s">정지 · 감속 · 경로 변경</text>
+        <rect x="380" y="290" width="150" height="56" rx="10" class="box light"/>
+        <text x="455" y="314" class="t">신호 197개</text><text x="455" y="334" class="t s">초록 연장 · 조기 전환</text>
+        <path d="M72,214 L130,288" class="ln" marker-end="url(#a)"/>
+        <path d="M210,214 L190,288" class="ln" marker-end="url(#a)"/>
+        <path d="M348,214 L260,288" class="ln" marker-end="url(#a)"/>
+        <path d="M486,214 L455,288" class="ln" marker-end="url(#a)"/>
+        <text x="280" y="395" class="t s">보조: 180초 이상 낀 차 견인(현실 보정, 비교 양쪽 동일)</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- 3. 1초 파이프라인 -->
+<section class="slide">
+  <h2><span class="num">02</span>매 1초 처리 순서</h2>
+  <div class="pipeline">
+    <div class="step"><b>1</b><span>시뮬레이션<br>1초 진행</span></div>
+    <div class="step"><b>2</b><span>실물 보드<br>상황 반영</span></div>
+    <div class="step c-blue"><b>3</b><span>실시간<br>경로 재계산</span><em>60초 지난 차만</em></div>
+    <div class="step"><b>4</b><span>감지</span><em>사고·보행자·정체</em></div>
+    <div class="step c-red"><b>5</b><span>판단</span><em>차마다 명령 1개</em></div>
+    <div class="step"><b>6</b><span>견인</span><em>20초마다</em></div>
+    <div class="step c-red"><b>7</b><span>명령 실행</span><em>우회·대기<br>비교</em></div>
+    <div class="step c-green"><b>8</b><span>신호 배분</span><em>5초마다</em></div>
+    <div class="step c-purple"><b>9</b><span>정체 예측<br>선제 우회</span><em>60초마다</em></div>
+  </div>
+  <div class="cols mt">
+    <div class="col-4 card"><h3>판단과 실행 분리</h3><p>판단 규칙(<code>decision_policy.py</code>)은 SUMO를 호출하지 않는 순수 함수. 실제 CCTV 입력으로 바꿔 끼워도 그대로 동작하는 구조.</p></div>
+    <div class="col-4 card"><h3>한 차에 명령 하나</h3><p>여러 위험이 겹쳐도 우선순위 <b>정지 &gt; 우회 &gt; 감속</b>으로 하나만 배정. 정지할 차는 우회를 계산할 여유가 없다고 본다.</p></div>
+    <div class="col-4 card"><h3>계산 비용 분산</h3><p>전역 경로 탐색은 차당 약 10ms. 7,200대를 매 초 돌리면 멈추므로 60초 주기, 선제 우회는 사이클당 최대 120대.</p></div>
+  </div>
+</section>
+
+<!-- 4. 감지 -->
+<section class="slide">
+  <h2><span class="num">03</span>감지 — 무엇을 보고 판단하나</h2>
+  <div class="cols">
+    <div class="col-6">
+      <table class="grid">
+        <tr><th>감지</th><th>범위</th><th>조건</th></tr>
+        <tr><td>사고</td><td>도로망 전역</td><td>사고 도로 발생 즉시(CCTV 9곳 + 그 밖은 V2N 차량 신고)</td></tr>
+        <tr><td>보행자</td><td>CCTV 9곳 + 어린이보호구역</td><td>구역 도로 위 보행자</td></tr>
+        <tr><td>정체</td><td>CCTV 9곳</td><td>구역 도로 평균 속도 &lt; 2 m/s</td></tr>
+        <tr><td>실물 보행자</td><td>신양초 사거리</td><td>RC카 보드의 LED 보행자(YOLO 인식)</td></tr>
+      </table>
+      <h3 class="mt">CCTV 9곳은 데이터로 선정</h3>
+      <ol class="tight">
+        <li>연결 도로 수(연결도) 상위 30개 교차로</li>
+        <li>시뮬레이션 1시간 실측 통행량 상위 9곳 확정</li>
+      </ol>
+    </div>
+    <div class="col-6 card soft">
+      <h3>실험용 사고 규칙 (스트레스 테스트)</h3>
+      <ul class="tight">
+        <li><b>30초마다 1건, 30초 지속</b> — 새 사고가 나면 이전 사고는 풀림</li>
+        <li>위치: 지금 도로 위 모든 차의 남은 경로에 <b>가장 많이 들어 있는 도로</b> = 앞으로 가장 많은 차가 지나갈 도로</li>
+        <li>제외: 20m 미만 도로, 어린이보호구역, 최근 사고 5건 도로</li>
+        <li>사고 도로 위 차는 멈춘다 — <b>중앙 제어가 있든 없든 동일</b></li>
+      </ul>
+      <p class="note">실제 사고 빈도가 아니라 사고 대응 알고리즘이 가장 많이 작동하는 최악 조건. 감지는 완벽하다고 가정(영상 오인식은 모델링하지 않음).</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5. 사고 대응 3단계 -->
+<section class="slide">
+  <h2><span class="num">04</span>알고리즘 ① 사고 대응 — 위치에 따라 세 가지 명령</h2>
+  <svg viewBox="0 0 1180 250" class="diagram wide">
+    <defs><marker id="b" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker></defs>
+    <rect x="20" y="95" width="1140" height="44" rx="6" fill="#e2e8f0"/>
+    <line x1="20" y1="117" x2="1150" y2="117" stroke="#94a3b8" stroke-dasharray="14 10" stroke-width="2"/>
+    <path d="M40,175 L1130,175" stroke="#334155" stroke-width="2" marker-end="url(#b)"/>
+    <text x="585" y="200" class="t s">차량 진행 방향</text>
+    <rect x="20" y="40" width="560" height="44" rx="8" fill="#ede9fe"/><text x="400" y="68" class="t" fill="#6d28d9">우회 판단 — 사고 3~5칸 앞</text>
+    <rect x="590" y="40" width="370" height="44" rx="8" fill="#fef3c7"/><text x="775" y="68" class="t" fill="#b45309">감속 5 m/s — 1~2칸 앞</text>
+    <rect x="970" y="40" width="190" height="44" rx="8" fill="#fee2e2"/><text x="1065" y="68" class="t" fill="#b91c1c">정지 — 사고 도로</text>
+    <circle cx="1065" cy="117" r="17" fill="#dc2626"/><text x="1065" y="123" class="t w">!</text>
+    <g fill="#475569"><rect x="140" y="106" width="40" height="22" rx="5"/><rect x="420" y="106" width="40" height="22" rx="5"/><rect x="700" y="106" width="40" height="22" rx="5"/><rect x="860" y="106" width="40" height="22" rx="5"/><rect x="1005" y="106" width="34" height="22" rx="5"/></g>
+    <path d="M160,106 C160,20 300,10 330,30" stroke="#7c3aed" stroke-width="3" fill="none" stroke-dasharray="6 5" marker-end="url(#b)"/>
+    <text x="250" y="232" class="t s">칸(hop) = 교차로와 교차로 사이 도로 한 토막</text>
+  </svg>
+  <div class="cols mt-s">
+    <div class="col-4 card bl-red"><h3>정지 — 사고 도로 위</h3><p>진로가 물리적으로 막힘. 목표 속도 0. 사고가 풀리면 다음 스텝부터 자동 해제(명령 유효 2초, 매 초 재판단).</p></div>
+    <div class="col-4 card bl-amber"><h3>감속 — 1~2칸 앞</h3><p>빠질 갈림길이 거의 없음. 18 km/h로 늦춰 사고 지점에 안전하게 접근 — 급정거·추돌 예방.</p></div>
+    <div class="col-4 card bl-purple"><h3>우회 판단 — 3~5칸 앞</h3><p>남은 경로에 사고 도로가 <b>있는 차만</b> 대상. 사고 도로를 피하는 경로를 계산하되, 다음 장의 대기 비교를 통과해야 실제로 우회.</p></div>
+  </div>
+  <p class="note">기준값: <code>NEARBY_HOPS=2</code>, <code>REROUTE_HOPS=5</code>, 감속 <code>5.0 m/s</code> — <code>core/cctv_detector.py</code>, <code>core/decision_policy.py</code></p>
+</section>
+
+<!-- 6. 우회 vs 대기 -->
+<section class="slide">
+  <h2><span class="num">05</span>알고리즘 ① 사고 대응 — 우회할까, 기다릴까</h2>
+  <div class="cols">
+    <div class="col-7">
+      <p class="lead">우회가 항상 빠르지 않다. 30초 뒤 풀릴 사고 때문에 간선도로에서 골목으로 빠지면 오히려 늦는다(실측 예: 137초 → 227초).</p>
+      <div class="formula">
+        <div><span class="tag c-blue">기다리면</span> ETA<sub>대기</sub> = max( 사고 도로 도착 시각, <b>사고 해제 시각</b> ) + 사고 도로 통과(제한속도) + 나머지 경로</div>
+        <div><span class="tag c-purple">돌아가면</span> ETA<sub>우회</sub> = 사고 도로에 큰 통행시간 벌점을 준 뒤 SUMO 라우터가 찾은 최단시간 경로</div>
+        <div class="rule">ETA<sub>우회</sub> &lt; ETA<sub>대기</sub> 일 때만 우회 · 아니면 <b>원래 경로 유지</b>(사고 끝까지 재계산 안 함)</div>
+      </div>
+      <ul class="tight">
+        <li>도로 통행시간은 SUMO가 매 순간 측정한 현재 평균 속도 기준</li>
+        <li>멈춘 도로는 추정치가 수만 초로 튀므로 도로당 최대 300초로 자름</li>
+        <li>벌점 창은 30초 — 실측 결과 2~10초는 라우터가 무시함(이 버그를 찾아 고침)</li>
+      </ul>
+    </div>
+    <div class="col-5 card soft">
+      <h3>관찰 결과 (대시보드 10배속)</h3>
+      <div class="bigstat"><b>18/18</b><span>우회한 차 전부 대기보다 빨랐다<br>평균 13초, 최대 25초 단축</span></div>
+      <div class="bigstat"><b>20대</b><span>원래 경로 유지<br>우회했으면 중앙값 33초 손해</span></div>
+      <p class="note">도시 전체 지표(5 seed, 켬 vs 끔)로는 seed마다 방향이 갈려 효과 판별 불가 — 사고 한 건이 영향을 주는 차는 수십 대, 도시 전체는 7,200대.</p>
+      <p class="note"><code>core/vehicle_controller.py</code> <code>_reroute_around()</code></p>
+    </div>
+  </div>
+</section>
+
+<!-- 7. 실시간 재계산 -->
+<section class="slide">
+  <h2><span class="num">06</span>알고리즘 ② 실시간 경로 재계산</h2>
+  <div class="cols">
+    <div class="col-6">
+      <p class="lead">사고 대응은 사고 주변만 본다. 도시 곳곳에서 서서히 쌓이는 정체는 이 알고리즘이 맡는다.</p>
+      <ol class="steps">
+        <li>모든 차의 마지막 계산 시각을 기록</li>
+        <li><b>60초가 지난 차</b>만 경로 재계산 — 차마다 출발 시점이 달라 계산이 시간에 고르게 퍼짐</li>
+        <li>기준: 각 도로의 <b>지금</b> 평균 통행시간(SUMO 실측) → 최단시간 경로</li>
+        <li>실물 RC카(보드 위)는 제외 — 경로는 RC카 제어기가 정함</li>
+      </ol>
+    </div>
+    <div class="col-6 card soft">
+      <h3>일반 내비와 다른 점</h3>
+      <table class="grid">
+        <tr><th></th><th>개인 내비</th><th>V2N 중앙 제어</th></tr>
+        <tr><td>목표</td><td>내 차 최단</td><td>도시 전체 흐름</td></tr>
+        <tr><td>정보</td><td>과거·표본 속도</td><td>모든 차의 현재 위치·경로</td></tr>
+        <tr><td>몰림</td><td>모두 같은 길로</td><td>③에서 분산</td></tr>
+        <tr><td>신호</td><td>관여 못 함</td><td>④에서 함께 조정</td></tr>
+      </table>
+      <p class="note">60초 주기는 계산 비용(차당 약 10ms × 7,200대)과 정체 변화 속도를 고려한 설계값. <code>core/central_server.py</code></p>
+    </div>
+  </div>
+</section>
+
+<!-- 8. 정체 예측 -->
+<section class="slide">
+  <h2><span class="num">07</span>알고리즘 ③ 정체 예측 선제 우회</h2>
+  <div class="cols">
+    <div class="col-7">
+      <ol class="steps">
+        <li><b>예측</b>: 60초마다 모든 차의 남은 경로를 따라가며 <b>앞으로 90초 안에</b> 각 도로에 도착할 차 수를 센다</li>
+        <li><b>용량 비교</b>: 도로 용량 = 차선 수 × 0.4대/초(시간당 1,440대/차선) × 90초. 넘으면 "넘칠 도로"</li>
+        <li><b>대상 선정</b>: 그 도로까지 <b>45초 이상 여유</b>가 있는 차만 — 이미 가까이 온 차는 대안도 같이 막혀 있다</li>
+        <li><b>급한 순서</b>로 사이클당 최대 120대 경로 재계산(넘칠 도로에 60초 벌점)</li>
+        <li><b>몰림 방지</b>: 같은 대체 도로에 차선당 15대가 넘게 배정되면, 다음 차는 그 도로도 피해 다시 계산(그 차에만 적용되는 개별 벌점)</li>
+      </ol>
+    </div>
+    <div class="col-5">
+      <div class="card soft">
+        <h3>몰림(herd effect) 실측과 개선</h3>
+        <div class="bars">
+          <div class="bar"><span>개선 전</span><i style="width:97%" class="c-red-bg"></i><b>97%</b></div>
+          <div class="bar"><span>개선 후</span><i style="width:56%" class="c-green-bg"></i><b>56%</b></div>
+        </div>
+        <p class="note">한 사이클 우회 차 중 가장 많이 몰린 대체 도로로 간 비율(73대 중 71대 → 56%)</p>
+      </div>
+      <div class="card soft mt-s">
+        <h3>트레이드오프 (seed 1~3, 켬 vs 끔)</h3>
+        <p>총 통행시간 <b class="r">+0.9~2.7%</b> · 누적 대기 <b class="g">-0.7~8.8%</b><br>미리 돌아가서 거리는 늘고 막혀 서 있는 시간은 준다.</p>
+      </div>
+    </div>
+  </div>
+  <p class="note">머신러닝이 아니라 계산 — 중앙이 모든 차의 경로를 알기 때문에 가능. <code>core/predictive_reroute.py</code></p>
+</section>
+
+<!-- 9. 신호 -->
+<section class="slide">
+  <h2><span class="num">08</span>알고리즘 ④ 신호 시간 배분</h2>
+  <div class="cols">
+    <div class="col-7">
+      <p class="lead">5초마다 신호 197개 전부: 지금 초록 방향과 다음 방향의 <b>대기 차량 수</b>(속도 0.1 m/s 미만)를 비교한다.</p>
+      <table class="grid big">
+        <tr><th>조건</th><th>행동</th></tr>
+        <tr><td>초록이 최소 시간 전</td><td><b>절대 안 건드림</b> — 보행자 안전 시간 보장</td></tr>
+        <tr><td>다음 방향 대기 &gt; 지금 방향 × 1.8</td><td><b>조기 전환</b> — 2초 뒤(급정거 방지)</td></tr>
+        <tr><td>지금 방향 대기 ≥ 3대</td><td><b>연장</b> = 4초 + 대기 1대당 1초 (최대 20초, 최대 시간 이내)</td></tr>
+        <tr><td>그 밖</td><td>원래 신호 그대로</td></tr>
+      </table>
+      <p class="note">max-pressure(대기열 압력 비교) 신호 제어의 단순화 버전. <code>core/signal_controller.py</code></p>
+    </div>
+    <div class="col-5 card soft">
+      <h3>해 보고 버린 것 — 전부 실측으로 판단</h3>
+      <ul class="tight">
+        <li>빈 방향은 최소 시간도 건너뛰기 → 효과 없음</li>
+        <li>하류 도로가 꽉 차면 연장 안 함 → 그리드락 <b class="r">+45%</b></li>
+        <li>짧은 진입로는 상류 대기열까지 세기 → 전반 악화</li>
+      </ul>
+      <p class="note">교훈: 신호 로직을 도시 전역으로 바꾼 시도는 세 번 모두 실패했고, 도로망 구조(쪼개진 사거리 합치기)를 고친 것이 가장 효과가 컸다(견인 -80%, 만성 정체 -75%).</p>
+    </div>
+  </div>
+</section>
+
+<!-- 10. 견인 -->
+<section class="slide">
+  <h2><span class="num">09</span>보조 — 견인(현실 보정)</h2>
+  <div class="cols">
+    <div class="col-6">
+      <p class="lead">20초마다 점검해 <b>연속 180초 이상 멈춘 차</b>를 도로에서 치운다. 실제 도로라면 견인차가 오는 상황.</p>
+      <ul class="tight">
+        <li>180초 = 신호 한 주기(90초)의 2배 → 신호 대기와 확실히 구분</li>
+        <li>없으면: 충돌로 낀 차가 SUMO 기본 순간이동(300초) 뒤 같은 자리에 다시 갇히는 무한 반복(실측)</li>
+        <li><b>중앙 제어 있음/없음 양쪽에 똑같이 적용</b> — 알고리즘 효과로 착각되지 않게</li>
+        <li>실물 RC카는 견인하지 않음(실물이 서 있으면 화면도 서 있어야 함)</li>
+      </ul>
+    </div>
+    <div class="col-6 card soft">
+      <h3>정체를 재는 지표</h3>
+      <table class="grid">
+        <tr><td><b>견인</b></td><td>180초 이상 낀 차 수 — "막힘"의 가장 직접적인 지표</td></tr>
+        <tr><td><b>그리드락</b></td><td>한 교차로로 들어오는 2개 이상 방향이 동시에 60초 넘게 정지</td></tr>
+        <tr><td><b>만성 정체</b></td><td>한 도로 평균 2 m/s 이하가 120초 넘게 지속</td></tr>
+        <tr><td><b>TSTT</b></td><td>모든 차가 도로 위에 있던 시간 합(도착 못 한 차 포함)</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 11. 실물 연동 -->
+<section class="slide">
+  <h2><span class="num">10</span>실물 연동 — 현장 자율 판단과 도시 중앙 제어의 연결</h2>
+  <svg viewBox="0 0 1180 230" class="diagram wide">
+    <defs><marker id="c" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker></defs>
+    <rect x="10" y="60" width="220" height="90" rx="12" class="box c-amber"/><text x="120" y="98" class="t">RC카 보드</text><text x="120" y="120" class="t s">상공 카메라 · YOLO</text>
+    <rect x="290" y="60" width="240" height="90" rx="12" class="box c-amber"/><text x="410" y="92" class="t">RC카 제어기</text><text x="410" y="114" class="t s">보행자 정지 · 후진 · B 우회</text><text x="410" y="134" class="t s">판단은 여기서</text>
+    <path d="M230,105 L288,105" class="ln" marker-end="url(#c)"/>
+    <path d="M530,105 L618,105" class="ln" marker-end="url(#c)"/>
+    <text x="574" y="92" class="t s">UDP 9002</text><text x="574" y="128" class="t s">초당 10회</text>
+    <rect x="620" y="40" width="250" height="130" rx="12" class="box c-blue"/><text x="745" y="78" class="t">신양초 사거리</text><text x="745" y="100" class="t s">디지털 트윈</text><text x="745" y="122" class="t s">보드 좌표 → 기준점 보간</text><text x="745" y="144" class="t s">판단 코드 표시</text>
+    <path d="M870,105 L938,105" class="ln" marker-end="url(#c)"/>
+    <text x="904" y="92" class="t s">보드 이탈</text>
+    <rect x="940" y="60" width="230" height="90" rx="12" class="box c-green"/><text x="1055" y="94" class="t">일반 차량으로 합류</text><text x="1055" y="118" class="t s">①~④ 중앙 제어를 받음</text>
+    <text x="590" y="210" class="t s">연동은 차량 → SUMO 한 방향(팀 결정): 실차 검증된 판단을 시연 직전에 바꾸지 않는다</text>
+  </svg>
+  <div class="cols mt-s">
+    <div class="col-4 card"><h3>좌표 변환</h3><p>보드(1.34 × 0.91 m)와 실제 사거리는 모양이 달라 비례 변환 불가. 출발·사거리 입구·보행자 선·도착 기준점끼리 짝지어 구간별 보간 → 실물이 LED 앞에서 서면 SUMO 차도 보행자 앞에서 선다.</p></div>
+    <div class="col-4 card"><h3>보행자 = 사고와 같은 흐름</h3><p>보드 LED 보행자가 인식되면 신양초 출구 도로에 위험을 켜고, 주변 SUMO 차는 ① 사고 대응 규칙대로 정지·우회한다.</p></div>
+    <div class="col-4 card"><h3>도시 교통으로 합류</h3><p>보드 주행이 끝난 RC카는 같은 자리·같은 모습의 일반 차량이 되어 1.5km 이상 떨어진 목적지까지 중앙 제어를 받으며 달린다.</p></div>
+  </div>
+</section>
+
+<!-- 12. 설계 원칙 -->
+<section class="slide">
+  <h2><span class="num">11</span>설계 원칙과 검증 방식</h2>
+  <div class="cols">
+    <div class="col-6">
+      <h3>원칙</h3>
+      <ul class="tight">
+        <li><b>표준 기법 사용</b>: 우회는 직접 길찾기 대신 SUMO 라우터에 벌점을 주는 표준 incident-avoidance 방식 → 도로망 어디서나 동작</li>
+        <li><b>판단과 실행 분리</b>: 규칙은 SUMO 없이 테스트(단위 테스트 17개)</li>
+        <li><b>보수적 명령</b>: 가장 강한 명령은 정지, 목적지는 절대 바꾸지 않음</li>
+        <li><b>안전 시간 불가침</b>: 신호 최소 시간은 건드리지 않음</li>
+        <li><b>재현 가능</b>: 도로망은 설정 파일 하나로 빌드, 차량·보행자·사고 난수 모두 seed로 고정</li>
+      </ul>
+    </div>
+    <div class="col-6">
+      <h3>검증 방식</h3>
+      <ul class="tight">
+        <li>같은 seed로 <b>중앙 제어 없음 vs 켬</b> 비교, seed 5쌍 + 통계 검정(대응 t-검정·Wilcoxon)</li>
+        <li>사고는 양쪽 조건 모두 같은 규칙으로 발생, 차이는 알고리즘뿐</li>
+        <li>평균뿐 아니라 "몇 개 seed에서 나아졌나"를 함께 봄</li>
+        <li>스스로 찾아 고친 버그: 우회 벌점 창이 너무 짧아 무시됨, 보행자 크기 왜곡, 사고 난수 미고정, 신호 방향 오인식, 우회 몰림 97%</li>
+      </ul>
+      <p class="note">비교 결과는 별도 자료 "통계 비교표" 참고.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 13. 요약 -->
+<section class="slide summary">
+  <h2><span class="num">12</span>요약</h2>
+  <div class="sum-grid">
+    <div class="sum c-red"><b>① 사고 대응</b><span>사고 도로 정지 · 1~2칸 감속 · 3~5칸 우회 판단<br>우회가 대기보다 빠를 때만 우회</span></div>
+    <div class="sum c-blue"><b>② 실시간 재계산</b><span>60초마다 모든 차를<br>현재 통행시간 기준 최단 경로로</span></div>
+    <div class="sum c-purple"><b>③ 정체 예측</b><span>90초 뒤 넘칠 도로 예측 →<br>여유 있는 차만 분산 우회</span></div>
+    <div class="sum c-green"><b>④ 신호 배분</b><span>대기열 비교로 연장·조기 전환<br>최소 시간은 보장</span></div>
+  </div>
+  <p class="lead center mt">관제탑 하나가 도시 전체를 보고, 현장의 실물 차량 판단까지 하나의 화면으로 잇는다.</p>
+</section>
+
+</body>
+</html>

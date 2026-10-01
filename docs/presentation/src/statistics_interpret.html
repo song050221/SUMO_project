@@ -1,0 +1,31 @@
+<section class="slide compact"><h2><span class="num">05</span>해석 — 무엇이 좋아졌고, 무엇을 대가로 냈나</h2>
+<div class="cols">
+  <div class="col-6">
+    <div class="card bl-green">
+      <h3>확실히 좋아짐 (5개 seed 전부 같은 방향)</h3>
+      <div class="bigrow"><b class="g">-76%</b><span>견인 568 → 134대<br>도로에 낀 채 못 빠져나간 차</span></div>
+      <div class="bigrow"><b class="g">-35%</b><span>누적 대기시간<br>도로 위에서 멈춰 서 있던 시간</span></div>
+      <div class="bigrow"><b class="g">-14%</b><span>총 시스템 통행시간(TSTT)</span></div>
+    </div>
+    <div class="card bl-red mt-s">
+      <h3>대가로 늘어남</h3>
+      <p><b>평균 통행시간 +8%</b> — 우회로 이동 거리가 늘고, 원래라면 낀 채 견인됐을 차가 늦게라도 도착해 평균에 들어온다(도착한 차만 세는 지표).</p>
+      <p><b>급제동 +15%</b> — 사고 앞 감속·정지 명령과 경로 변경이 브레이크를 더 밟게 한다. 충돌은 늘지 않았다(-19%, 차이 없음).</p>
+    </div>
+  </div>
+  <div class="col-6">
+    <div class="card soft">
+      <h3>읽을 때 주의할 점</h3>
+      <ul class="tight">
+        <li><b>표본 5쌍</b>: t-검정은 유의(p &lt; 0.05). Wilcoxon은 5쌍이면 최솟값이 0.0625라 0.05 아래로 내려갈 수 없다 — 5개 모두 같은 방향이 이 검정의 최대치</li>
+        <li><b>TSTT</b>는 견인된 차를 "끝까지 도착 못 한 차"로 1시간 끝까지 센다 → 견인이 줄면 크게 준다. 그래서 <b>누적 대기시간과 견인</b>을 주된 근거로 본다</li>
+        <li><b>사고는 30초마다</b> 가장 붐빌 도로에 나는 스트레스 조건. 실제 사고 빈도에서의 효과는 측정하지 않았다</li>
+        <li>모든 차가 명령을 따른다는 <b>V2N 보급률 100%</b> 가정</li>
+      </ul>
+    </div>
+    <div class="card soft mt-s">
+      <h3>예전 공식 결과(차이 없음)와 다른 이유</h3>
+      <p>예전 비교는 <b>중앙 제어 쪽에만 사고가 나는</b> 불공정 조건이었다(사고가 감지 함수 안에서 만들어져 baseline엔 사고가 없었음). 이번엔 양쪽에 같은 규칙으로 사고를 내 차이가 알고리즘뿐이 되게 고쳤다. 도로망도 최신(사거리 합치기·재빌드)이다.</p>
+    </div>
+  </div>
+</div></section>

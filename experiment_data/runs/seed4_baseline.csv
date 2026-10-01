@@ -1,0 +1,2 @@
+seed,mode,avg_travel_time,total_system_travel_time,total_wait_time,collision_count,emergency_brake_count,throughput,towed_count
+4,baseline,415.0176529588766,4537134,109080145.0,16,700,5656,671

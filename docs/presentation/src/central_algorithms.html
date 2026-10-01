@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>V2N 중앙 제어 알고리즘 (시연용)</title>
+<link rel="stylesheet" href="slides.css">
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+
+<!-- 1. 한눈에 -->
+<section class="slide">
+  <h2><span class="num">1</span>V2N 중앙 제어 — 관제탑 하나가 도시 전체를 본다</h2>
+  <svg viewBox="0 0 1150 520" class="diagram">
+    <defs><marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#475569"/></marker></defs>
+    <rect x="395" y="10" width="360" height="90" rx="14" class="box dark"/>
+    <text x="575" y="50" class="t w big">중앙 서버</text>
+    <text x="575" y="80" class="t ws">모든 차의 위치·경로 + CCTV + 신호</text>
+    <g>
+      <rect x="10" y="200" width="265" height="130" rx="14" class="box c-red"/>
+      <text x="142" y="245" class="t big">① 사고 대응</text>
+      <text x="142" y="278" class="t s">정지 · 감속 · 우회</text>
+      <text x="142" y="303" class="t s">우회 vs 대기 비교</text>
+      <rect x="295" y="200" width="265" height="130" rx="14" class="box c-blue"/>
+      <text x="427" y="245" class="t big">② 실시간 재계산</text>
+      <text x="427" y="278" class="t s">60초마다 모든 차</text>
+      <text x="427" y="303" class="t s">지금 가장 빠른 길로</text>
+      <rect x="580" y="200" width="265" height="130" rx="14" class="box c-purple"/>
+      <text x="712" y="245" class="t big">③ 정체 예측</text>
+      <text x="712" y="278" class="t s">90초 뒤 막힐 도로</text>
+      <text x="712" y="303" class="t s">미리 나눠서 우회</text>
+      <rect x="865" y="200" width="275" height="130" rx="14" class="box c-green"/>
+      <text x="1002" y="245" class="t big">④ 신호 배분</text>
+      <text x="1002" y="278" class="t s">줄 긴 방향에 초록 더</text>
+      <text x="1002" y="303" class="t s">5초마다 · 197개 신호</text>
+    </g>
+    <path d="M575,100 L142,196" class="ln" marker-end="url(#a)"/>
+    <path d="M575,100 L427,196" class="ln" marker-end="url(#a)"/>
+    <path d="M575,100 L712,196" class="ln" marker-end="url(#a)"/>
+    <path d="M575,100 L1002,196" class="ln" marker-end="url(#a)"/>
+    <rect x="180" y="410" width="790" height="80" rx="14" class="box light"/>
+    <text x="575" y="445" class="t big">광진구 전체 · 차량 7,200대 · 보행자 900명</text>
+    <text x="575" y="475" class="t s">대시보드에서 차마다 "어떤 알고리즘을 받았는지"가 실시간으로 보인다</text>
+    <path d="M142,330 L330,406" class="ln" marker-end="url(#a)"/>
+    <path d="M427,330 L500,406" class="ln" marker-end="url(#a)"/>
+    <path d="M712,330 L650,406" class="ln" marker-end="url(#a)"/>
+    <path d="M1002,330 L820,406" class="ln" marker-end="url(#a)"/>
+  </svg>
+</section>
+
+<!-- 2. 사고 대응 -->
+<section class="slide">
+  <h2><span class="num">2</span>① 사고 대응 — 차 위치에 따라 다르게</h2>
+  <svg viewBox="0 0 1150 230" class="diagram">
+    <defs><marker id="b" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker></defs>
+    <rect x="10" y="20" width="560" height="56" rx="10" fill="#ede9fe"/><text x="290" y="57" class="t big" fill="#6d28d9">우회 판단 · 3~5칸 앞</text>
+    <rect x="580" y="20" width="360" height="56" rx="10" fill="#fef3c7"/><text x="760" y="57" class="t big" fill="#b45309">감속 · 1~2칸 앞</text>
+    <rect x="950" y="20" width="190" height="56" rx="10" fill="#fee2e2"/><text x="1045" y="57" class="t big" fill="#b91c1c">정지</text>
+    <rect x="10" y="100" width="1130" height="52" rx="8" fill="#e2e8f0"/>
+    <line x1="10" y1="126" x2="1130" y2="126" stroke="#94a3b8" stroke-dasharray="16 12" stroke-width="2"/>
+    <g fill="#475569"><rect x="130" y="112" width="48" height="28" rx="6"/><rect x="400" y="112" width="48" height="28" rx="6"/><rect x="680" y="112" width="48" height="28" rx="6"/><rect x="840" y="112" width="48" height="28" rx="6"/><rect x="985" y="112" width="42" height="28" rx="6"/></g>
+    <circle cx="1075" cy="126" r="20" fill="#dc2626"/><text x="1075" y="134" class="t w big">!</text>
+    <path d="M30,195 L1120,195" stroke="#334155" stroke-width="2" marker-end="url(#b)"/>
+    <text x="575" y="222" class="t s">차량 진행 방향 · 칸 = 교차로 사이 도로 한 토막</text>
+  </svg>
+  <div class="decide">
+    <div class="d-q">우회하는 게 빠를까, 사고가 풀릴 때까지 기다리는 게 빠를까?</div>
+    <div class="d-row">
+      <div class="d-box c-purple"><b>우회 도착 시간</b><span>사고 도로를 피한 최단 경로</span></div>
+      <div class="d-vs">vs</div>
+      <div class="d-box c-blue"><b>대기 도착 시간</b><span>원래 길 + 사고 해제까지 대기</span></div>
+      <div class="d-arrow">→</div>
+      <div class="d-res"><b>더 빠른 쪽</b><span>우회 / 원래 경로 유지</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. 경로: 재계산 + 예측 -->
+<section class="slide">
+  <h2><span class="num">3</span>② 실시간 재계산 · ③ 정체 예측 우회</h2>
+  <div class="cols">
+    <div class="col-6 panel c-blue-l">
+      <h3>② 60초마다 모든 차</h3>
+      <svg viewBox="0 0 520 330" class="diagram">
+        <defs><marker id="c" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#2563eb"/></marker></defs>
+        <path d="M80,200 L440,200" stroke="#f87171" stroke-width="12" fill="none"/>
+        <text x="260" y="238" class="t s">지금 막힌 길</text>
+        <path d="M82,172 C170,50 350,50 430,166" stroke="#2563eb" stroke-width="5" fill="none" stroke-dasharray="10 7" marker-end="url(#c)"/>
+        <text x="260" y="62" class="t" fill="#2563eb">지금 더 빠른 길</text>
+        <circle cx="60" cy="200" r="34" fill="#1e3a8a"/><text x="60" y="207" class="t w">출발</text>
+        <circle cx="460" cy="200" r="34" fill="#1e3a8a"/><text x="460" y="207" class="t w">도착</text>
+        <text x="260" y="300" class="t s">도로마다 지금 속도(실측)로 다시 계산</text>
+      </svg>
+    </div>
+    <div class="col-6 panel c-purple-l">
+      <h3>③ 90초 뒤 막힐 도로를 미리</h3>
+      <svg viewBox="0 0 520 330" class="diagram">
+        <text x="270" y="40" class="t s" fill="#6d28d9">여유 있는 차만 미리 우회</text>
+        <path d="M66,105 C140,55 380,55 490,100" stroke="#7c3aed" stroke-width="4" fill="none" stroke-dasharray="9 6"/>
+        <path d="M66,255 C140,305 380,305 490,260" stroke="#7c3aed" stroke-width="4" fill="none" stroke-dasharray="9 6"/>
+        <g fill="#475569"><rect x="20" y="95" width="42" height="24" rx="5"/><rect x="20" y="168" width="42" height="24" rx="5"/><rect x="20" y="241" width="42" height="24" rx="5"/><rect x="88" y="132" width="42" height="24" rx="5"/><rect x="88" y="205" width="42" height="24" rx="5"/></g>
+        <path d="M134,144 L218,170" stroke="#94a3b8" stroke-width="3"/><path d="M134,217 L218,192" stroke="#94a3b8" stroke-width="3"/>
+        <rect x="220" y="140" width="210" height="80" rx="12" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+        <text x="325" y="174" class="t">도착 예정 &gt; 용량</text><text x="325" y="202" class="t s">90초 뒤 넘칠 도로</text>
+        <text x="270" y="324" class="t s" fill="#6d28d9">한 길로 몰리지 않게 나눠 배정</text>
+      </svg>
+    </div>
+  </div>
+  <p class="foot">내비는 내 차만 최단 · 중앙 제어는 모든 차를 보고 <b>몰리지 않게 나눈다</b> (몰림 97% → 56%)</p>
+</section>
+
+<!-- 4. 신호 -->
+<section class="slide">
+  <h2><span class="num">4</span>④ 신호 배분 — 줄이 긴 방향에 초록을 더</h2>
+  <div class="sig">
+    <div class="sig-case">
+      <div class="lights"><i class="g"></i></div>
+      <div class="queue"><span>지금 방향</span><b class="q q6"></b></div>
+      <div class="queue"><span>다음 방향</span><b class="q q2"></b></div>
+      <div class="res c-green"><b>초록 연장</b><span>4초 + 대기 1대당 1초 (최대 20초)</span></div>
+    </div>
+    <div class="sig-case">
+      <div class="lights"><i class="g"></i></div>
+      <div class="queue"><span>지금 방향</span><b class="q q1"></b></div>
+      <div class="queue"><span>다음 방향</span><b class="q q7"></b></div>
+      <div class="res c-amber"><b>일찍 넘김</b><span>다음 방향이 1.8배 넘게 길면 2초 뒤 전환</span></div>
+    </div>
+  </div>
+  <p class="foot">5초마다 신호 197개 전부 · <b>보행자 최소 시간은 절대 줄이지 않음</b></p>
+</section>
+
+<!-- 5. 실물 연동 -->
+<section class="slide">
+  <h2><span class="num">5</span>실물 RC카 ↔ 신양초 사거리 디지털 트윈</h2>
+  <svg viewBox="0 0 1150 300" class="diagram">
+    <defs><marker id="d" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker></defs>
+    <rect x="10" y="60" width="240" height="150" rx="14" class="box c-amber"/>
+    <text x="130" y="110" class="t big">실물 보드</text><text x="130" y="142" class="t s">RC카 2대 · LED 보행자</text><text x="130" y="166" class="t s">상공 카메라 · YOLO</text>
+    <rect x="300" y="60" width="250" height="150" rx="14" class="box c-amber"/>
+    <text x="425" y="110" class="t big">RC카 제어기</text><text x="425" y="142" class="t s">보행자 앞 정지 · 후진</text><text x="425" y="166" class="t s">B 우회 — 스스로 판단</text>
+    <rect x="620" y="60" width="250" height="150" rx="14" class="box c-blue"/>
+    <text x="745" y="110" class="t big">신양초 사거리</text><text x="745" y="142" class="t s">같은 장면 그대로</text><text x="745" y="166" class="t s">판단 코드 표시</text>
+    <rect x="920" y="60" width="220" height="150" rx="14" class="box c-green"/>
+    <text x="1030" y="110" class="t big">도시로 합류</text><text x="1030" y="142" class="t s">보드를 벗어나면</text><text x="1030" y="166" class="t s">①~④ 중앙 제어</text>
+    <path d="M250,135 L296,135" class="ln" marker-end="url(#d)"/>
+    <path d="M550,135 L616,135" class="ln" marker-end="url(#d)"/><text x="584" y="120" class="t s">UDP</text><text x="584" y="160" class="t s">10회/초</text>
+    <path d="M870,135 L916,135" class="ln" marker-end="url(#d)"/>
+    <text x="575" y="270" class="t s">연동은 차량 → SUMO 한 방향 · 현장은 차가 스스로, 도시는 중앙이</text>
+  </svg>
+  <div class="tags">
+    <span>보행자 앞 정지선 정지</span><span>앞차 정지 · 우회 준비</span><span>후진해 각 만들기</span><span>B 우회로 주행</span>
+  </div>
+  <p class="foot">대시보드 알림 "실물 판단"에 RC카의 판단이 실시간으로 뜬다</p>
+</section>
+
+</body>
+</html>

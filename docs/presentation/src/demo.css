@@ -1,0 +1,37 @@
+/* 시연용 짧은 자료 - 글은 최소, 그림은 크게 */
+.slide h2 { font-size: 38px; margin-bottom: 34px; }
+.slide h2 .num { font-size: 18px; padding: 5px 12px; }
+.diagram .t.big { font-size: 24px; }
+.diagram .t { font-size: 20px; }
+.diagram .t.s { font-size: 17px; }
+.diagram .t.ws { font-size: 17px; }
+.foot { position: absolute; left: 64px; right: 64px; bottom: 48px; text-align: center; font-size: 22px; color: #334155; margin: 0; }
+
+.decide { margin-top: 40px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 22px 28px; }
+.d-q { font-size: 24px; font-weight: 700; color: #1e3a8a; margin-bottom: 18px; text-align: center; }
+.d-row { display: flex; align-items: center; gap: 16px; justify-content: center; }
+.d-box { border-radius: 12px; padding: 14px 22px; text-align: center; border: 2px solid; min-width: 250px; }
+.d-box.c-purple { background: #f5f3ff; border-color: #7c3aed; } .d-box.c-blue { background: #eff6ff; border-color: #2563eb; }
+.d-box b, .d-res b { display: block; font-size: 22px; } .d-box span, .d-res span { font-size: 16px; color: #475569; }
+.d-vs, .d-arrow { font-size: 28px; font-weight: 700; color: #64748b; }
+.d-res { background: #1e3a8a; color: #fff; border-radius: 12px; padding: 14px 22px; text-align: center; }
+.d-res span { color: #bfdbfe; }
+
+.panel { border-radius: 16px; padding: 22px 24px 10px; }
+.panel h3 { font-size: 26px; margin-bottom: 6px; }
+.c-blue-l { background: #eff6ff; } .c-purple-l { background: #f5f3ff; }
+
+.sig { display: flex; gap: 40px; margin-top: 10px; }
+.sig-case { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 36px 34px; }
+.lights { display: flex; gap: 10px; margin-bottom: 22px; }
+.lights i { width: 30px; height: 30px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 6px #d1fae5; }
+.queue { display: flex; align-items: center; gap: 16px; margin: 24px 0; }
+.queue span { width: 110px; font-size: 20px; font-weight: 700; color: #334155; }
+.q { height: 34px; border-radius: 6px; background: repeating-linear-gradient(90deg, #475569 0 38px, transparent 38px 46px); display: block; }
+.q1 { width: 46px; } .q2 { width: 92px; } .q6 { width: 276px; } .q7 { width: 322px; }
+.res { margin-top: 36px; border-radius: 12px; padding: 16px 20px; border-left: 8px solid; }
+.res b { display: block; font-size: 26px; margin-bottom: 4px; } .res span { font-size: 18px; color: #334155; }
+.res.c-green { background: #ecfdf5; border-color: #059669; } .res.c-amber { background: #fffbeb; border-color: #d97706; }
+
+.tags { display: flex; gap: 14px; justify-content: center; margin-top: 18px; }
+.tags span { background: #fef3c7; color: #92400e; font-size: 19px; font-weight: 700; padding: 10px 18px; border-radius: 999px; }

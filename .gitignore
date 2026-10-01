@@ -21,3 +21,7 @@ __pycache__/
 docs/*.pdf
 Claude outputs/
 .claude/
+
+# 실험 실행 로그(결과 CSV는 남긴다)
+experiment_data/runs/*.log
+experiment_data/runs/*.part

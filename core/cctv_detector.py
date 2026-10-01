@@ -163,6 +163,17 @@ def update_accidents(current_time):
         del _recent_accident_edges[:-RECENT_ACCIDENT_EXCLUDE]
 
 
+def apply_accident_blockage(current_time):
+    """중앙 제어 없는 비교 조건(baseline)용: 사고를 같은 규칙으로 내고, 사고 도로 위 차는 멈춰 세운다(사고가 물리적으로
+    길을 막는 것). 중앙 제어 쪽은 poll_all_zones → decide_actions가 같은 차들에 같은 정지를 걸고, 거기에 감속·우회·
+    대기 비교를 더한다 - 그래야 두 조건의 차이가 "사고 대응 알고리즘"뿐이 된다(2026-10-01, 전에는 baseline에 사고가
+    아예 없어서 중앙 제어 쪽만 사고로 손해를 보는 불공정 비교였다)."""
+    update_accidents(current_time)
+    for edge in sorted(_active_accidents):
+        for veh_id in traci.edge.getLastStepVehicleIDs(edge):
+            traci.vehicle.slowDown(veh_id, 0.0, duration=2.0)  # decision_policy의 stop과 같은 값
+
+
 def reset_accidents():
     """새 시뮬레이션을 시작할 때(한 프로세스에서 seed 여러 개를 연달아 돌리는 측정 등) 사고 상태를 비운다."""
     global _next_random_accident

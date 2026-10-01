@@ -1,0 +1,2 @@
+seed,mode,avg_travel_time,total_system_travel_time,total_wait_time,collision_count,emergency_brake_count,throughput,towed_count
+4,treatment,458.1255208333333,3603809,51893483.0,22,842,5888,128

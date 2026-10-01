@@ -1312,16 +1312,28 @@ crosswalk_fix16_pairs_*.png`)로 보고 **5곳은 뺌**: #20(이웃 사거리 �
   reverse, diverting 등)를 `EVENT_LABELS`로 한국어로 바꿔 신양초 카드·구역 상세 창("실물 · 보행자 앞 정지선 정지")에 보이고,
   정지선 정지·우회 준비·후진·우회로 바뀌는 순간을 "실물 판단" 알림으로 올린다. fake_hardware_sender도 event를 보낸다.
 
+### AF. 최종 공식 실험 + 발표 자료 (2026-10-01, 사용자 요청)
+
+- **비교 조건 결함 발견·수정**: 사고가 `poll_all_zones()`(감지) 안에서 만들어져 baseline에는 사고가 아예 없었다 - 중앙 제어 쪽만
+  사고로 손해를 보는 불공정 비교(M·N번의 "차이 없음"도 이 조건). 사용자 결정으로 양쪽 다 사고: `cctv_detector.apply_accident_blockage()`
+  (같은 사고 규칙 + 사고 도로 위 차 정지 - decision_policy의 stop과 같은 값)를 baseline에서 부름(`run_single_simulation.py`).
+- `run_experiments.py`: `--workers`(동시 실행, 실행 하나 메모리 약 2GB), 수요는 먼저 순서대로 생성, 실행마다 `experiment_data/runs/seed*_mode.csv`,
+  끝나면 `results.csv`로 합침, 끝난 실행은 건너뜀. `run_single_simulation.py --out`. 옛 results.csv → `results_old_network_2026-09-16.csv`.
+- 시간: baseline 약 7분, treatment 약 20분(3개 동시). 사용자 요청으로 seed 1~5만(6~10 수요 파일은 있음).
+- **결과(seed 1~5, 대응 t-검정)**: 견인 568→134(-76%, p=0.005, 5/5), 누적 대기 -35%(p=0.029, 5/5), TSTT -14%(p=0.016, 5/5),
+  처리량 +1.4%(n.s.), 충돌 -19%(n.s.), **평균 통행시간 +8%(p<0.001, 악화), 급제동 +15%(p=0.047, 악화)**. Wilcoxon은 5쌍이면 최소 0.0625.
+  TSTT는 견인된 차를 끝까지 미도착으로 세므로 견인 감소에 크게 좌우됨 - 주 근거는 견인·누적 대기.
+- 발표 자료 `docs/presentation/`: `central_algorithms.pdf`(시연 옆에 띄우는 5쪽), `central_algorithms_detail.pdf`(13쪽, 질의응답용),
+  `statistics.pdf`(6쪽). 원본 HTML은 `src/`, Chrome 헤드리스로 인쇄(`chrome --headless=new --no-pdf-header-footer --print-to-pdf=...`).
+  통계표는 `python scripts/make_stats_report.py --interpret docs/presentation/src/statistics_interpret.html`로 재생성(해석 슬라이드는 손으로 쓴 것 -
+  숫자가 바뀌면 같이 고칠 것). 설명서 `docs/PART_GUIDE_SUMO.md` 5-2·Q02·Q03·8번도 이 결과로 갱신.
+
 ## 정식 실험 결과 — 현재 상태
 
-**가장 최신/신뢰할 수 있는 결과는 위 N-5번의 `experiment_data/results_v3.csv`**(seed 1~10,
-random.seed 버그까지 고친 뒤 재실험, 2026-09-16). `results.csv`도 이 파일과 동일하게
-갱신해둠(대시보드가 읽는 파일). **통계적으로도 실질적으로도 유의미한 개선을 아직 못 찾았고,
-이제 두 번(v2, v3) 다른 조건에서 같은 결론이 나왔으므로 우연이 아닐 가능성이 높다.** 이
-문제를 어떻게 풀지는 여전히 열려있는 질문 — predictive_reroute의 트레이드오프(N-2번)를
-받아들이고 "정체 완화" 쪽으로 지표/서술 방향을 재정의하거나, 알고리즘 자체를 더 손보거나
-선택이 필요함. `results_v2.csv`(N번 조사 전, random.seed 버그 있던 상태)와 그 이전
-`results_final_tow.csv`(2026-08-10, n=3)는 전부 낡은 데이터이니 참고만 하고 새로 인용하지 말 것.
+**최신은 AF번(2026-10-01, 최신 도로망, seed 1~5, 사고 양쪽 동일)**: 견인 -76%, 누적 대기 -35%, TSTT -14%(모두 5/5, t-검정 유의),
+대가로 평균 통행시간 +8%·급제동 +15%. `experiment_data/results.csv`(대시보드 비교 페이지도 이 파일을 읽음), 발표용 `docs/presentation/statistics.pdf`.
+N-5번의 "유의미한 개선 없음"(`results_old_network_2026-09-16.csv`)은 baseline에 사고가 없던 불공정 조건이라 더는 인용하지 말 것.
+예선 보고서 수치(TSTT -3.1% 등)도 인용 금지(L·M번).
 
 **주의(겪은 문제)**: bash 도구가 보여주는 PID와 실제 Windows PID가 다르게 매핑되는 경우가
 있어서, `kill -9 <bash가 보여준 PID>`로 sumo-gui 등을 죽였다고 생각해도 실제로는 안 죽고

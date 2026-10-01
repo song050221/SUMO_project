@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import sumolib
 import traci
 
-from cctv_detector import poll_all_zones
+from cctv_detector import apply_accident_blockage, poll_all_zones
 from central_server import CentralServer
 from vehicle_controller import execute_commands
 from signal_controller import SignalController
@@ -97,7 +97,7 @@ def ensure_pedestrian_demand(seed):
     return routes_file
 
 
-def run(seed, mode):
+def run(seed, mode, results_file=RESULTS_FILE):
     # cctv_detector.py의 사고 발생(update_accidents)·하드웨어 목적지 선택은 Python
     # 표준 random 모듈을 쓰는데, 이건 SUMO의 --seed(차량 흐름/차선변경 등 SUMO 내부
     # 난수)와는 완전히 별개 상태라 여기서 직접 고정 안 하면 매 프로세스 실행마다
@@ -163,6 +163,9 @@ def run(seed, mode):
 
         # treatment만 central_server + vehicle_controller가 개입한다.
         # baseline은 분산형(개입 없음)이라 initial_optimization/handle_cctv_alert를 호출하지 않는다.
+        # 사고 자체(같은 규칙으로 발생, 사고 도로 위 차 정지)는 양쪽 다 - 사고는 중앙 제어가 있든 없든 난다(2026-10-01).
+        if mode == "baseline":
+            apply_accident_blockage(now)
         if mode == "treatment":
             server.initial_optimization()
             alerts = poll_all_zones()
@@ -216,8 +219,8 @@ def run(seed, mode):
         "towed_count": remover.total_removed,
     }
 
-    write_header = not os.path.exists(RESULTS_FILE)
-    with open(RESULTS_FILE, "a", newline="", encoding="utf-8") as f:
+    write_header = not os.path.exists(results_file)
+    with open(results_file, "a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(row.keys()))
         if write_header:
             writer.writeheader()
@@ -230,6 +233,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--mode", choices=["baseline", "treatment"], required=True)
+    parser.add_argument("--out", default=RESULTS_FILE,
+                        help="결과를 덧붙일 CSV - 여러 seed를 동시에 돌릴 땐 실행마다 다른 파일로(같은 파일에 동시 쓰기 방지)")
     args = parser.parse_args()
-    result = run(args.seed, args.mode)
+    result = run(args.seed, args.mode, args.out)
     print(result)
