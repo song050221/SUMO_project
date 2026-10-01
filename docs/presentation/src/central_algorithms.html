@@ -153,5 +153,42 @@
   <p class="foot">대시보드 알림 "실물 판단"에 RC카의 판단이 실시간으로 뜬다</p>
 </section>
 
+<!-- 6. 통계 비교표 -->
+<section class="slide">
+  <h2><span class="num">6</span>결과 — 같은 사고 조건에서 중앙 제어 없음 vs 켬</h2>
+  <table class="res-table">
+    <tr><th>지표</th><th>중앙 제어 없음</th><th>중앙 제어 켬</th><th>변화</th><th>좋아진 seed</th><th>판정</th></tr>
+    <tr><td>견인 (180초 넘게 낀 차)</td><td>568대</td><td>134대</td><td class="g">▼ 76%</td><td>5/5</td><td><span class="pill good">개선</span></td></tr>
+    <tr><td>누적 대기시간</td><td>8,729만 초</td><td>5,687만 초</td><td class="g">▼ 35%</td><td>5/5</td><td><span class="pill good">개선</span></td></tr>
+    <tr><td>총 시스템 통행시간</td><td>424만 초</td><td>366만 초</td><td class="g">▼ 14%</td><td>5/5</td><td><span class="pill good">개선</span></td></tr>
+    <tr><td>처리량 (도착 차량)</td><td>5,761대</td><td>5,839대</td><td>▲ 1%</td><td>3/5</td><td><span class="pill neutral">차이 없음</span></td></tr>
+    <tr><td>충돌</td><td>24.8건</td><td>20.2건</td><td>▼ 19%</td><td>4/5</td><td><span class="pill neutral">차이 없음</span></td></tr>
+    <tr><td>평균 통행시간 (도착한 차)</td><td>424초</td><td>458초</td><td class="r">▲ 8%</td><td>0/5</td><td><span class="pill bad">악화</span></td></tr>
+    <tr><td>급제동</td><td>761회</td><td>874회</td><td class="r">▲ 15%</td><td>1/5</td><td><span class="pill bad">악화</span></td></tr>
+  </table>
+  <p class="foot small">광진구 도로망 · 차량 7,200대 + 보행자 900명 · 1시간 · seed 5쌍 · 사고 30초마다(양쪽 동일) · 대응표본 t-검정 p &lt; 0.05 기준</p>
+</section>
+
+<!-- 7. 결과 해석 -->
+<section class="slide">
+  <h2><span class="num">7</span>해석 — 막힘은 크게 줄고, 대신 조금 돌아간다</h2>
+  <div class="cols">
+    <div class="col-6 panel good-l">
+      <h3>확실히 좋아짐 · 5번 모두 같은 방향</h3>
+      <div class="big"><b>-76%</b><span>낀 채 못 빠져나간 차</span></div>
+      <div class="big"><b>-35%</b><span>도로에서 멈춰 서 있던 시간</span></div>
+      <p class="why">사고가 나도 뒤 차들이 미리 감속·우회하고,<br>60초마다 막힌 길을 피해 다시 길을 찾기 때문</p>
+    </div>
+    <div class="col-6 panel bad-l">
+      <h3>대가</h3>
+      <div class="big r"><b>+8%</b><span>평균 통행시간</span></div>
+      <p class="why">돌아가는 만큼 거리가 늘고, 원래라면 낀 채 견인됐을 차가 늦게라도 도착해 평균에 들어온다</p>
+      <div class="big r"><b>+15%</b><span>급제동</span></div>
+      <p class="why">사고 앞 감속·정지 명령 때문 — 충돌은 늘지 않음</p>
+    </div>
+  </div>
+  <p class="foot small">조건: 사고가 30초마다 나는 스트레스 상황 · 모든 차가 명령을 따른다고 가정(V2N 100%) · seed 5쌍</p>
+</section>
+
 </body>
 </html>

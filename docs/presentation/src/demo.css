@@ -35,3 +35,21 @@
 
 .tags { display: flex; gap: 14px; justify-content: center; margin-top: 18px; }
 .tags span { background: #fef3c7; color: #92400e; font-size: 19px; font-weight: 700; padding: 10px 18px; border-radius: 999px; }
+
+/* 6·7쪽 결과 */
+.foot.small { font-size: 16px; color: #64748b; }
+.res-table { width: 100%; border-collapse: collapse; }
+.res-table th { background: #1e3a8a; color: #fff; font-size: 19px; padding: 12px 16px; text-align: center; }
+.res-table th:first-child, .res-table td:first-child { text-align: left; }
+.res-table td { font-size: 21px; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; text-align: center; }
+.res-table tr:nth-child(even) td { background: #f8fafc; }
+.res-table td.g { color: #059669; font-weight: 700; } .res-table td.r { color: #dc2626; font-weight: 700; }
+.pill { display: inline-block; padding: 4px 14px; border-radius: 999px; font-size: 17px; font-weight: 700; }
+.pill.good { background: #d1fae5; color: #047857; } .pill.bad { background: #fee2e2; color: #b91c1c; }
+.pill.neutral { background: #e2e8f0; color: #334155; }
+.good-l { background: #ecfdf5; } .bad-l { background: #fef2f2; }
+.big { display: flex; align-items: baseline; gap: 18px; margin: 14px 0 6px; }
+.big b { font-size: 60px; color: #059669; min-width: 170px; }
+.big.r b { color: #dc2626; }
+.big span { font-size: 23px; font-weight: 700; color: #1e293b; }
+.why { font-size: 18px; color: #475569; line-height: 1.55; margin: 4px 0 10px; }
